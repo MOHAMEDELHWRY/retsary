@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { UploadDialog } from '@/components/ui/upload-dialog';
-import { Upload, FileText, Eye } from 'lucide-react';
+import { Upload, FileText, Eye, Pencil, Trash2 } from 'lucide-react';
 import { useTransactions } from '@/context/transactions-context';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 export default function CustomerSalesPage() {
   const [dateFrom, setDateFrom] = useState('');
@@ -21,7 +23,7 @@ export default function CustomerSalesPage() {
   const [customer, setCustomer] = useState('');
   
   // استخدام context للتعامل مع العمليات
-  const { addTransaction, getTransactionByOperationNumber } = useTransactions();
+  const { addTransaction, getTransactionByOperationNumber, deleteCustomerSale } = useTransactions();
   const { toast } = useToast();
   
   // state للدفعة الجديدة
@@ -368,6 +370,12 @@ export default function CustomerSalesPage() {
     }
   };
 
+  const handleDeleteSale = async (saleId: string) => {
+    await deleteCustomerSale(saleId);
+    setSalesData(prev => prev.filter(s => s.id !== saleId));
+    toast({ title: 'تم الحذف', description: 'تم حذف الفاتورة بنجاح' });
+  };
+
 
   return (
     <div className="container mx-auto p-2 space-y-4 max-w-full">
@@ -640,12 +648,13 @@ export default function CustomerSalesPage() {
                   <TableHead className="text-right text-sm">الرصيد المتبقي</TableHead>
                   <TableHead className="text-right text-sm">المستندات</TableHead>
                   <TableHead className="text-right text-sm">الحالة</TableHead>
+                  <TableHead className="text-right text-sm">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
             <TableBody>
               {salesData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={12} className="text-center py-8 text-gray-500">
                     <div className="flex flex-col items-center space-y-2">
                       <div className="text-lg">📊</div>
                       <div>لا يوجد عملاء مسجلين بعد</div>
@@ -731,6 +740,34 @@ export default function CustomerSalesPage() {
                           {sale.status}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => alert('تعديل ' + sale.id)}>
+                                <Pencil className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            سيتم حذف هذه الفاتورة نهائياً. لا يمكن التراجع عن هذا الإجراء.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteSale(sale.id)}>
+                                            حذف
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })
@@ -743,3 +780,4 @@ export default function CustomerSalesPage() {
     </div>
   );
 }
+
