@@ -499,7 +499,11 @@ export default function CustomerSalesPage() {
                 type="text"
                 placeholder="أدخل اسم العميل"
                 value={newInvoice.customer}
-                onChange={(e) => setNewInvoice({...newInvoice, customer: e.target.value})}
+                onChange={(e) => {
+                  const customerName = e.target.value;
+                  setNewInvoice({ ...newInvoice, customer: customerName });
+                  setNewPayment({ ...newPayment, customer: customerName });
+                }}
                 className="h-9"
               />
             </div>
