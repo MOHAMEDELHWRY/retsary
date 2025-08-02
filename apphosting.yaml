@@ -1,0 +1,11 @@
+# Settings to manage and configure a Firebase App Hosting backend.
+# https://firebase.google.com/docs/app-hosting/configure
+
+runConfig:
+  # Increase this value if you'd like to automatically spin up
+  # more instances in response to increased traffic.
+  maxInstances: 1
+  
+  # Environment variables for production
+  env:
+    GOOGLE_API_KEY: AIzaSyDtvc0zhvS-IhU5q_ibrfK0GeDg7DLPeug
