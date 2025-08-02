@@ -351,12 +351,15 @@ export default function CustomerSalesPage() {
     const transaction = getTransactionByOperationNumber(opNumber);
 
     if (transaction) {
+      const fetchedCustomerName = transaction.customerName || '';
       setNewInvoice({
         ...newInvoice,
-        customer: transaction.customerName || '',
+        customer: fetchedCustomerName,
         amount: String(transaction.totalPurchasePrice || 0),
         date: format(transaction.date, 'yyyy-MM-dd'),
       });
+      // Also update the payment form's customer name
+      setNewPayment(prev => ({ ...prev, customer: fetchedCustomerName }));
       toast({
         title: "تم سحب البيانات",
         description: `تم سحب بيانات العملية رقم ${opNumber} بنجاح.`,
@@ -370,7 +373,7 @@ export default function CustomerSalesPage() {
     }
   };
 
-  const handleDeleteSale = async (saleId: string) => {
+  const handleDeleteSale = async (saleId: any) => {
     try {
       await deleteCustomerSale(saleId);
       setSalesData(prev => prev.filter(s => s.id !== saleId));
