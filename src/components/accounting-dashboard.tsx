@@ -102,6 +102,7 @@ const transactionSchema = z.object({
   sellingPrice: z.coerce.number().min(0, 'سعر البيع يجب أن يكون موجبًا.').default(0),
   taxes: z.coerce.number().min(0, 'الضرائب يجب أن تكون موجبة.').default(0),
   amountPaidToFactory: z.coerce.number().min(0, 'المبلغ المدفوع يجب أن يكون موجبًا.').default(0),
+  paidBy: z.string().optional(), //  من قام بالدفع للمصنع
   amountReceivedFromSupplier: z.coerce.number().min(0, 'المبلغ المستلم يجب أن يكون موجبًا.').default(0),
   
   // طرق الدفع الجديدة
@@ -244,6 +245,7 @@ export default function AccountingDashboard() {
       sellingPrice: 0, 
       taxes: 0, 
       amountPaidToFactory: 0, 
+      paidBy: "",
       amountReceivedFromSupplier: 0, 
       showExecutionDate: false,
       // طرق الدفع الجديدة
@@ -306,6 +308,7 @@ export default function AccountingDashboard() {
         sellingPrice: 0, 
         taxes: 0, 
         amountPaidToFactory: 0, 
+        paidBy: "",
         amountReceivedFromSupplier: 0, 
         showExecutionDate: false,
         // طرق الدفع الجديدة
@@ -879,7 +882,7 @@ export default function AccountingDashboard() {
   }, [filteredAndSortedTransactions]);
   
   const handleExport = () => {
-    const headers = ["مسلسل", "التاريخ", "تاريخ التنفيذ", "تاريخ الاستحقاق", "اسم المورد", "المحافظة", "المركز", "الوصف", "الصنف", "النوع", "الكمية", "سعر الشراء", "إجمالي الشراء", "سعر البيع", "إجمالي البيع", "الضرائب", "الربح", "المدفوع للمصنع", "المستلم من المورد"];
+    const headers = ["مسلسل", "التاريخ", "تاريخ التنفيذ", "تاريخ الاستحقاق", "اسم المورد", "المحافظة", "المركز", "الوصف", "الصنف", "النوع", "الكمية", "سعر الشراء", "إجمالي الشراء", "سعر البيع", "إجمالي البيع", "الضرائب", "الربح", "المدفوع للمصنع", "القائم بالدفع", "المستلم من المورد"];
     const escapeCSV = (str: any) => {
       if (str === null || str === undefined) return "";
       const string = String(str);
@@ -891,7 +894,7 @@ export default function AccountingDashboard() {
       format(t.date, 'yyyy-MM-dd'), t.executionDate ? format(t.executionDate, 'yyyy-MM-dd') : '', t.dueDate ? format(t.dueDate, 'yyyy-MM-dd') : '',
       escapeCSV(t.supplierName), escapeCSV(t.governorate), escapeCSV(t.city), escapeCSV(t.description), escapeCSV(t.category), escapeCSV(t.variety),
       t.quantity, t.purchasePrice, t.totalPurchasePrice, t.sellingPrice, t.totalSellingPrice, t.taxes, t.profit,
-      t.amountPaidToFactory, t.amountReceivedFromSupplier
+      t.amountPaidToFactory, escapeCSV(t.paidBy), t.amountReceivedFromSupplier
     ].join(','));
     const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1080,6 +1083,9 @@ export default function AccountingDashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                           <FormField control={form.control} name="amountPaidToFactory" render={({ field }) => (
                             <FormItem><FormLabel>المبلغ المدفوع للمصنع</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="paidBy" render={({ field }) => (
+                            <FormItem><FormLabel>القائم بالدفع</FormLabel><FormControl><Input placeholder="اسم الشخص الذي قام بالدفع" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
                           <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (
                             <FormItem><FormLabel>طريقة الدفع للمصنع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
@@ -1508,7 +1514,7 @@ export default function AccountingDashboard() {
               <CardContent>
                   <div className="relative w-full overflow-auto">
                       <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                          <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
+                          <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
                           <TableBody>
                             {filteredAndSortedTransactions.map((t, index) => (
                               <TableRow key={t.id}>
@@ -1528,6 +1534,7 @@ export default function AccountingDashboard() {
                                 <TableCell>{t.totalSellingPrice > 0 ? t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
                                 <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                                 <TableCell>{t.amountPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                                <TableCell>{t.paidBy || '-'}</TableCell>
                                 <TableCell>
                                   {t.paymentMethodToFactory === 'نقدي' && '💵 نقدي'}
                                   {t.paymentMethodToFactory === 'تحويل بنكي' && '🏦 تحويل بنكي'}

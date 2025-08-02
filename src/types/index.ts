@@ -21,6 +21,7 @@ export type Transaction = {
   profit: number;
   amountPaidToFactory: number;
   amountReceivedFromSupplier: number;
+  paidBy?: string; //  من قام بالدفع للمصنع
   
   // طرق الدفع الجديدة
   paymentMethodToFactory?: 'نقدي' | 'تحويل بنكي' | 'إيداع'; // طريقة دفع المبلغ للمصنع
