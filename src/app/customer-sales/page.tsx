@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ export default function CustomerSalesPage() {
   const [customer, setCustomer] = useState('');
   
   // استخدام context للتعامل مع العمليات
-  const { addTransaction, getTransactionByOperationNumber, deleteCustomerSale } = useTransactions();
+  const { addTransaction, getTransactionByOperationNumber, deleteCustomerSale, customerNames } = useTransactions();
   const { toast } = useToast();
   
   // state للدفعة الجديدة
@@ -421,9 +421,9 @@ export default function CustomerSalesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع العملاء</SelectItem>
-                  <SelectItem value="ahmed">أحمد محمد</SelectItem>
-                  <SelectItem value="fatima">فاطمة علي</SelectItem>
-                  <SelectItem value="mohamed">محمد حسن</SelectItem>
+                  {customerNames.map(name => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -580,8 +580,8 @@ export default function CustomerSalesPage() {
                 className="h-9"
               />
               <div className="text-xs text-gray-500">
-                {salesData.length > 0 
-                  ? `العملاء الحاليون: ${[...new Set(salesData.map((s: any) => s.customer))].join(' • ')}`
+                {customerNames.length > 0 
+                  ? `العملاء الحاليون: ${customerNames.join(' • ')}`
                   : 'لا يوجد عملاء مسجلين بعد - أضف أول عميل'}
               </div>
             </div>

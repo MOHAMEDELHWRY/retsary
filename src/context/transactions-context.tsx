@@ -116,10 +116,11 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
 
   const customerNames = useMemo(() => {
     const allNames = new Set<string>();
+    transactions.forEach(t => { if(t.customerName) allNames.add(t.customerName) });
     customerPayments.forEach(p => allNames.add(p.customerName));
     customerSales.forEach(s => allNames.add(s.customerName));
-    return Array.from(allNames).sort((a,b) => a.localeCompare(b));
-  }, [customerPayments, customerSales]);
+    return Array.from(allNames).sort((a, b) => a.localeCompare(b));
+  }, [transactions, customerPayments, customerSales]);
 
   const getCustomerBalance = (customerName: string): CustomerBalance => {
     const customerSalesFiltered = customerSales.filter(s => s.customerName === customerName);
