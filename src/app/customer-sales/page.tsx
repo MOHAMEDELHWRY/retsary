@@ -371,9 +371,13 @@ export default function CustomerSalesPage() {
   };
 
   const handleDeleteSale = async (saleId: string) => {
-    await deleteCustomerSale(saleId);
-    setSalesData(prev => prev.filter(s => s.id !== saleId));
-    toast({ title: 'تم الحذف', description: 'تم حذف الفاتورة بنجاح' });
+    try {
+      await deleteCustomerSale(saleId);
+      setSalesData(prev => prev.filter(s => s.id !== saleId));
+      toast({ title: 'تم الحذف', description: 'تم حذف الفاتورة بنجاح' });
+    } catch (error) {
+       toast({ title: 'خطأ في الحذف', description: 'لم نتمكن من حذف الفاتورة.', variant: "destructive" });
+    }
   };
 
 
