@@ -282,6 +282,7 @@ export default function AccountingDashboard() {
     if (transaction) {
       form.reset({
         ...transaction,
+        paidBy: transaction.paidBy || '',
         date: new Date(transaction.date),
         executionDate: transaction.executionDate ? new Date(transaction.executionDate) : undefined,
         dueDate: transaction.dueDate ? new Date(transaction.dueDate) : undefined,
