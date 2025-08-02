@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -10,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { UploadDialog } from '@/components/ui/upload-dialog';
 import { Upload, FileText, Eye } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useTransactions } from '@/context/transactions-context';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 export default function CustomerSalesPage() {
   const [dateFrom, setDateFrom] = useState('');
@@ -19,7 +21,8 @@ export default function CustomerSalesPage() {
   const [customer, setCustomer] = useState('');
   
   // استخدام context للتعامل مع العمليات
-  const { transactions, addTransaction } = useTransactions();
+  const { addTransaction, getTransactionByOperationNumber } = useTransactions();
+  const { toast } = useToast();
   
   // state للدفعة الجديدة
   const [newPayment, setNewPayment] = useState({
@@ -37,13 +40,10 @@ export default function CustomerSalesPage() {
     operationNumber: '' // إضافة رقم العملية
   });
   
-  const [salesData, setSalesData] = useState<any[]>([
-    // قائمة فارغة - ستمتلئ عند إضافة عملاء جدد
-  ]);
+  const [salesData, setSalesData] = useState<any[]>([]);
 
   // حالة للمستندات المرفوعة
   const [uploadedDocuments, setUploadedDocuments] = useState<{[key: string]: string}>({});
-  const [documentPreviews, setDocumentPreviews] = useState<{[key: string]: string}>({});
   
   // حالة للتحميل
   const [isAddingInvoice, setIsAddingInvoice] = useState(false);
@@ -341,6 +341,34 @@ export default function CustomerSalesPage() {
     setIsAddingInvoice(false); // إنهاء التحميل
   };
 
+  // دالة لسحب البيانات تلقائياً من رقم العملية
+  const handleFetchDataByOperationNumber = () => {
+    const opNumber = newInvoice.operationNumber.trim();
+    if (!opNumber) return;
+
+    const transaction = getTransactionByOperationNumber(opNumber);
+
+    if (transaction) {
+      setNewInvoice({
+        ...newInvoice,
+        customer: transaction.customerName || '',
+        amount: String(transaction.totalPurchasePrice || 0),
+        date: format(transaction.date, 'yyyy-MM-dd'),
+      });
+      toast({
+        title: "تم سحب البيانات",
+        description: `تم سحب بيانات العملية رقم ${opNumber} بنجاح.`,
+      });
+    } else {
+      toast({
+        title: "خطأ",
+        description: `لم يتم العثور على عملية بالرقم ${opNumber}.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+
   return (
     <div className="container mx-auto p-2 space-y-4 max-w-full">
       <div className="flex items-center justify-between">
@@ -489,9 +517,11 @@ export default function CustomerSalesPage() {
               <Input
                 id="operationNumber"
                 type="text"
-                placeholder="سيتم التوليد تلقائياً"
+                placeholder="أدخل لسحب البيانات تلقائياً"
                 value={newInvoice.operationNumber}
-                onChange={(e) => setNewInvoice({...newInvoice, operationNumber: e.target.value})}
+                onChange={(e) => setNewInvoice({ ...newInvoice, operationNumber: e.target.value })}
+                onBlur={handleFetchDataByOperationNumber}
+                onKeyDown={(e) => e.key === 'Enter' && handleFetchDataByOperationNumber()}
                 className="h-9"
               />
               <div className="text-xs text-gray-500">
