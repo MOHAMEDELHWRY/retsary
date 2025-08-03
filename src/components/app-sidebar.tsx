@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookUser, LineChart, Factory, Users, SidebarClose, LogOut, Wallet, ArrowRightLeft, Landmark, Users2, CreditCard, Receipt, Package } from 'lucide-react';
+import { BookUser, LineChart, Factory, Users, SidebarClose, LogOut, Wallet, ArrowRightLeft, Landmark, Users2, CreditCard, Receipt, Package, ListChecks } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -44,6 +44,7 @@ export function AppSidebar() {
 
   const menuItems = [
     { href: '/', label: 'لوحة التحكم', icon: BookUser, isActive: () => pathname === '/' },
+    { href: '/transactions-log', label: 'سجل العمليات', icon: ListChecks, isActive: () => pathname === '/transactions-log' },
     { href: '/suppliers-report', label: 'تقرير الموردين', icon: Users, isActive: () => pathname === '/suppliers-report' || pathname.startsWith('/supplier/') },
     { href: '/customer-cycle', label: 'العملاء', icon: Users2, isActive: () => pathname === '/customer-cycle' || pathname.startsWith('/customer-details/') },
     { href: '/customer-payments', label: 'مدفوعات العملاء', icon: CreditCard, isActive: () => pathname === '/customer-payments' },

@@ -1429,181 +1429,6 @@ export default function AccountingDashboard() {
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المبيعات</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">صافي الربح (بعد المصروفات)</CardTitle><LineChart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{totalProfit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div><p className="text-xs text-muted-foreground">الربح {profitFromTransactions.toLocaleString('ar-EG', {style:'currency', currency: 'EGP'})} - المصروفات {totalExpenses.toLocaleString('ar-EG', {style:'currency', currency: 'EGP'})}</p></CardContent></Card>
       </div>
-      
-      <div className="mb-8">
-          <Card>
-              <CardHeader>
-                  <CardTitle>سجل العمليات</CardTitle>
-                  <div className="flex flex-col md:flex-row gap-2 mt-4">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="بحث برقم العملية، اسم العميل، الوصف أو اسم المورد..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-                      </div>
-                      <div className="flex flex-col md:flex-row gap-2">
-                        <div className="flex items-center gap-2">
-                          <Select value={dateType} onValueChange={(value) => setDateType(value as 'operation' | 'execution')}>
-                            <SelectTrigger className="w-[140px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="operation">تاريخ العملية</SelectItem>
-                              <SelectItem value="execution">تاريخ التنفيذ</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Popover open={isStartDatePopoverOpen} onOpenChange={setIsStartDatePopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <Button variant={"outline"} className={cn("w-full md:w-[180px] justify-start text-right font-normal", !startDate && "text-muted-foreground")}>
-                                <CalendarIcon className="ml-2 h-4 w-4" />
-                                {startDate ? format(startDate, "PPP", { locale: ar }) : <span>من تاريخ</span>}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="center">
-                              <Calendar 
-                                mode="single" 
-                                selected={startDate} 
-                                onSelect={(date) => { 
-                                  setStartDate(date); 
-                                  setIsStartDatePopoverOpen(false); 
-                                }} 
-                                initialFocus 
-                              />
-                            </PopoverContent>
-                          </Popover>
-                          <Popover open={isEndDatePopoverOpen} onOpenChange={setIsEndDatePopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <Button variant={"outline"} className={cn("w-full md:w-[180px] justify-start text-right font-normal", !endDate && "text-muted-foreground")}>
-                                <CalendarIcon className="ml-2 h-4 w-4" />
-                                {endDate ? format(endDate, "PPP", { locale: ar }) : <span>إلى تاريخ</span>}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="center">
-                              <Calendar 
-                                mode="single" 
-                                selected={endDate} 
-                                onSelect={(date) => { 
-                                  setEndDate(date); 
-                                  setIsEndDatePopoverOpen(false); 
-                                }} 
-                                initialFocus 
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Select onValueChange={(value) => setDateRangePreset(value as 'today' | 'week' | 'month' | 'all')}>
-                            <SelectTrigger className="w-[120px]">
-                              <SelectValue placeholder="مدة سريعة" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="today">اليوم</SelectItem>
-                              <SelectItem value="week">هذا الأسبوع</SelectItem>
-                              <SelectItem value="month">هذا الشهر</SelectItem>
-                              <SelectItem value="all">الكل</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {(startDate || endDate) && (
-                            <Button variant="ghost" onClick={clearDateFilter} className="text-destructive">
-                              مسح الفلتر
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                  </div>
-              </CardHeader>
-              <CardContent>
-                  <div className="relative w-full overflow-auto">
-                      <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                          <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
-                          <TableBody>
-                            {filteredAndSortedTransactions.map((t, index) => (
-                              <TableRow key={t.id}>
-                                <TableCell>{filteredAndSortedTransactions.length - index}</TableCell>
-                                <TableCell>{t.operationNumber || '-'}</TableCell>
-                                <TableCell>{t.customerName || '-'}</TableCell>
-                                <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
-                                <TableCell>{t.showExecutionDate && t.executionDate ? format(t.executionDate, 'dd MMMM yyyy', { locale: ar }) : '-'}</TableCell>
-                                <TableCell>{t.supplierName}</TableCell>
-                                <TableCell>{t.description}</TableCell>
-                                <TableCell>{t.governorate || '-'}{t.city ? ` - ${t.city}` : ''}</TableCell>
-                                <TableCell>{t.quantity} طن{t.variety ? ` / ${t.variety}` : ''}</TableCell>
-                                <TableCell className="text-orange-600 font-medium">{(t.actualQuantityDeducted || 0).toFixed(2)} طن</TableCell>
-                                <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
-                                <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                <TableCell>{t.totalPurchasePrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                <TableCell>{t.totalSellingPrice > 0 ? t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
-                                <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                <TableCell>{t.amountPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                <TableCell>{t.paidBy || '-'}</TableCell>
-                                <TableCell>
-                                  {t.paymentMethodToFactory === 'نقدي' && '💵 نقدي'}
-                                  {t.paymentMethodToFactory === 'تحويل بنكي' && '🏦 تحويل بنكي'}
-                                  {t.paymentMethodToFactory === 'إيداع' && '💳 إيداع'}
-                                  {!t.paymentMethodToFactory && '-'}
-                                </TableCell>
-                                <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                                <TableCell>
-                                  {t.paymentMethodFromSupplier === 'نقدي' && '💵 نقدي'}
-                                  {t.paymentMethodFromSupplier === 'تحويل بنكي' && '🏦 تحويل بنكي'}
-                                  {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
-                                  {!t.paymentMethodFromSupplier && '-'}
-                                </TableCell>
-                                <TableCell>
-                                  {t.attachments && t.attachments.length > 0 ? (
-                                    <button
-                                      onClick={() => handlePreviewAttachments(t.attachments, t)}
-                                      className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                                    >
-                                      <FileText className="h-4 w-4" />
-                                      <span className="text-sm font-medium">{t.attachments.length}</span>
-                                    </button>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(t)}>
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    {t.customerName && (
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
-                                        onClick={() => handleCreatePaymentFromTransaction(t)}
-                                        title="إنشاء مدفوعة عميل من هذه العملية"
-                                      >
-                                        <CreditCard className="h-4 w-4 text-blue-600" />
-                                      </Button>
-                                    )}
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle>
-                                          <AlertDialogDescription>هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف العملية بشكل دائم.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                          <AlertDialogCancel>إلغاء</AlertDialogCancel>
-                                          <AlertDialogAction onClick={() => handleDeleteTransaction(t.id)}>متابعة</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                      </Table>
-                  </div>
-              </CardContent>
-          </Card>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
         <div className="lg:col-span-1">
