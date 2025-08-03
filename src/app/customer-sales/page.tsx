@@ -16,6 +16,7 @@ import { useTransactions } from '@/context/transactions-context';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { type CustomerSale } from '@/types';
 
 export default function CustomerSalesPage() {
@@ -24,7 +25,7 @@ export default function CustomerSalesPage() {
   const [dateTo, setDateTo] = useState('');
   const [customer, setCustomer] = useState('all_customers');
 
-  const { getTransactionByOperationNumber, customerNames, customerSales, addCustomerSale, deleteCustomerSale, addCustomerPayment, loading } = useTransactions();
+  const { getTransactionByOperationNumber, customerNames, customerSales, addCustomerSale, deleteCustomerSale, updateCustomerSale, addCustomerPayment, loading } = useTransactions();
   const { toast } = useToast();
 
   const [newPayment, setNewPayment] = useState({
@@ -41,6 +42,8 @@ export default function CustomerSalesPage() {
     operationNumber: ''
   });
 
+  const [editingSale, setEditingSale] = useState<CustomerSale | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddingInvoice, setIsAddingInvoice] = useState(false);
   
   // Set customer from URL query parameter
@@ -174,8 +177,6 @@ export default function CustomerSalesPage() {
         status: 'معلق',
         operationNumber: operationNumber,
         invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
-        // We assume a single supplier or a generic one for sales context
-        // This might need adjustment based on business logic
         supplierName: 'المبيعات العامة', 
         description: `فاتورة مبيعات للعميل ${newInvoice.customer.trim()}`,
       };
@@ -231,6 +232,22 @@ export default function CustomerSalesPage() {
     }
   };
 
+  const handleOpenEditDialog = (sale: CustomerSale) => {
+    setEditingSale(sale);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateSale = async () => {
+    if (!editingSale) return;
+    try {
+      await updateCustomerSale(editingSale);
+      toast({ title: 'تم التحديث', description: 'تم تحديث الفاتورة بنجاح' });
+      setIsEditDialogOpen(false);
+      setEditingSale(null);
+    } catch (error) {
+      toast({ title: 'خطأ في التحديث', description: 'لم نتمكن من تحديث الفاتورة.', variant: "destructive" });
+    }
+  };
 
   return (
     <div className="container mx-auto space-y-4 max-w-full">
@@ -598,7 +615,7 @@ export default function CustomerSalesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => alert('تعديل ' + sale.id)}>
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditDialog(sale)}>
                                 <Pencil className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
@@ -633,6 +650,92 @@ export default function CustomerSalesPage() {
           </div>
         </CardContent>
       </Card>
+      
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تعديل الفاتورة</DialogTitle>
+            <DialogDescription>
+              قم بتعديل بيانات الفاتورة أدناه ثم اضغط على حفظ.
+            </DialogDescription>
+          </DialogHeader>
+          {editingSale && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-customerName" className="text-right">
+                  اسم العميل
+                </Label>
+                <Input
+                  id="edit-customerName"
+                  value={editingSale.customerName}
+                  onChange={(e) => setEditingSale({ ...editingSale, customerName: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-date" className="text-right">
+                  التاريخ
+                </Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={format(new Date(editingSale.date), 'yyyy-MM-dd')}
+                  onChange={(e) => setEditingSale({ ...editingSale, date: new Date(e.target.value) })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-amount" className="text-right">
+                  مبلغ الفاتورة
+                </Label>
+                <Input
+                  id="edit-amount"
+                  type="number"
+                  value={editingSale.amount}
+                  onChange={(e) => setEditingSale({ ...editingSale, amount: parseFloat(e.target.value) || 0 })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-paidAmount" className="text-right">
+                  المبلغ المدفوع
+                </Label>
+                <Input
+                  id="edit-paidAmount"
+                  type="number"
+                  value={editingSale.paidAmount}
+                  onChange={(e) => setEditingSale({ ...editingSale, paidAmount: parseFloat(e.target.value) || 0 })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-status" className="text-right">
+                  الحالة
+                </Label>
+                 <Select
+                    value={editingSale.status}
+                    onValueChange={(value) => setEditingSale({ ...editingSale, status: value as any })}
+                  >
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="اختر الحالة" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="معلق">معلق</SelectItem>
+                      <SelectItem value="مدفوع جزئياً">مدفوع جزئياً</SelectItem>
+                      <SelectItem value="مدفوع">مدفوع</SelectItem>
+                      <SelectItem value="رصيد دائن">رصيد دائن</SelectItem>
+                    </SelectContent>
+                  </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>إلغاء</Button>
+            <Button onClick={handleUpdateSale}>حفظ التعديلات</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

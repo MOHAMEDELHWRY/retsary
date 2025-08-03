@@ -857,9 +857,20 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     if (!currentUser) throw new Error("User not authenticated");
     try {
       const { id, ...dataToUpdate } = updatedSale;
-      const docData = cleanDataForFirebase({ ...dataToUpdate, date: Timestamp.fromDate(updatedSale.date) });
+      const finalStatus = dataToUpdate.paidAmount >= dataToUpdate.amount ? 'مدفوع' : dataToUpdate.paidAmount > 0 ? 'مدفوع جزئياً' : 'معلق';
+      
+      const docData = cleanDataForFirebase({ 
+          ...dataToUpdate, 
+          status: finalStatus,
+          date: Timestamp.fromDate(updatedSale.date),
+          paymentDate: updatedSale.paymentDate ? Timestamp.fromDate(updatedSale.paymentDate) : null,
+      });
+
       await updateDoc(doc(db, 'users', currentUser.uid, 'customerSales', id), docData);
-      setCustomerSales(prev => prev.map(s => s.id === id ? updatedSale : s).sort((a, b) => b.date.getTime() - a.date.getTime()));
+      
+      const newUpdatedSale = { ...updatedSale, status: finalStatus };
+      setCustomerSales(prev => prev.map(s => s.id === id ? newUpdatedSale : s).sort((a, b) => b.date.getTime() - a.date.getTime()));
+      
       toast({ title: "تم التحديث", description: "تم تحديث مبيعة العميل بنجاح." });
     } catch (error) {
       console.error("Error updating customer sale: ", error);
