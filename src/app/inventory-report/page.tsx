@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTransactions } from '@/context/transactions-context';
 import { type InventoryBalance } from '@/types';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Package, DollarSign, Archive } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Package, DollarSign, Archive, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function InventoryReportPage() {
   const { transactions } = useTransactions();
+  const [searchTerm, setSearchTerm] = useState('');
 
   const inventoryBalances = useMemo<InventoryBalance[]>(() => {
     const inventoryMap = new Map<string, {
@@ -86,9 +88,26 @@ export default function InventoryReportPage() {
     })).filter(balance => balance.remainingQuantity > 0.01); // Filter out empty or negligible balances
   }, [transactions]);
   
+  const filteredInventory = useMemo(() => {
+    if (!searchTerm) {
+      return inventoryBalances;
+    }
+    const lowercasedFilter = searchTerm.toLowerCase();
+    return inventoryBalances.filter(item => {
+      return (
+        item.category.toLowerCase().includes(lowercasedFilter) ||
+        item.variety.toLowerCase().includes(lowercasedFilter) ||
+        item.customerName.toLowerCase().includes(lowercasedFilter) ||
+        item.supplierName.toLowerCase().includes(lowercasedFilter) ||
+        item.governorate.toLowerCase().includes(lowercasedFilter) ||
+        item.city.toLowerCase().includes(lowercasedFilter)
+      );
+    });
+  }, [inventoryBalances, searchTerm]);
+
   const totalRemainingValue = useMemo(() => {
-    return inventoryBalances.reduce((sum, balance) => sum + balance.remainingAmount, 0);
-  }, [inventoryBalances]);
+    return filteredInventory.reduce((sum, balance) => sum + balance.remainingAmount, 0);
+  }, [filteredInventory]);
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -103,7 +122,7 @@ export default function InventoryReportPage() {
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">إجمالي قيمة المخزون المتبقي</CardTitle>
+            <CardTitle className="text-sm font-medium">إجمالي قيمة المخزون المتبقي (المفلتر)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -114,12 +133,12 @@ export default function InventoryReportPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">عدد بنود المخزون المتبقية</CardTitle>
+            <CardTitle className="text-sm font-medium">عدد بنود المخزون المتبقية (المفلترة)</CardTitle>
             <Archive className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {inventoryBalances.length}
+              {filteredInventory.length}
             </div>
           </CardContent>
         </Card>
@@ -127,10 +146,23 @@ export default function InventoryReportPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>أرصدة المخزون الحالية</CardTitle>
-          <CardDescription>
-            عرض للكميات والمبالغ المتبقية في المخزون مجمعة حسب الصنف، النوع، العميل، المورد، والمنطقة.
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <CardTitle>أرصدة المخزون الحالية</CardTitle>
+              <CardDescription>
+                عرض للكميات والمبالغ المتبقية في المخزون مجمعة حسب الصنف، النوع، العميل، المورد، والمنطقة.
+              </CardDescription>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="بحث في المخزون..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -148,14 +180,14 @@ export default function InventoryReportPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inventoryBalances.length === 0 ? (
+                {filteredInventory.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                      لا يوجد مخزون متبقي لعرضه.
+                      {searchTerm ? "لا توجد نتائج بحث مطابقة." : "لا يوجد مخزون متبقي لعرضه."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  inventoryBalances.map((balance) => (
+                  filteredInventory.map((balance) => (
                     <TableRow key={balance.id}>
                       <TableCell>
                         <div className="font-medium">{balance.category}</div>
