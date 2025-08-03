@@ -678,46 +678,51 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
 
   const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
-    const { customerName, amount, date } = payment;
+    const { customerName, amount, date, supplierName } = payment;
 
     const batch = writeBatch(db);
 
-    // Apply credit/debit to customer sales for accounting
+    // Get all sales for the customer to apply payments against
     const unpaidSales = customerSales
-        .filter(s => s.customerName === customerName && (s.status === 'معلق' || s.status === 'مدفوع جزئياً'))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .filter(s => s.customerName === customerName && (s.status === 'معلق' || s.status === 'مدفوع جزئياً'))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     let remainingAmount = amount;
-    for (const sale of unpaidSales) {
-        if (remainingAmount <= 0) break;
-        const dueAmount = sale.amount - sale.paidAmount;
-        const amountToPay = Math.min(remainingAmount, dueAmount);
 
+    for (const sale of unpaidSales) {
+      if (remainingAmount <= 0) break;
+      const dueAmount = sale.amount - sale.paidAmount;
+      const amountToPayOnThisInvoice = Math.min(remainingAmount, dueAmount);
+
+      if (amountToPayOnThisInvoice > 0) {
         const saleDocRef = doc(db, 'users', currentUser.uid, 'customerSales', sale.id);
-        batch.update(saleDocRef, { 
-          paidAmount: sale.paidAmount + amountToPay,
-          status: (sale.paidAmount + amountToPay) >= sale.amount ? 'مدفوع' : 'مدفوع جزئياً',
+        const newPaidAmount = sale.paidAmount + amountToPayOnThisInvoice;
+        batch.update(saleDocRef, {
+          paidAmount: newPaidAmount,
+          status: newPaidAmount >= sale.amount ? 'مدفوع' : 'مدفوع جزئياً',
           paymentDate: Timestamp.fromDate(date)
         });
-        remainingAmount -= amountToPay;
+        remainingAmount -= amountToPayOnThisInvoice;
+      }
     }
 
     if (remainingAmount > 0) {
-        const creditSale: Omit<CustomerSale, 'id'> = {
-            customerName,
-            date,
-            amount: remainingAmount,
-            paidAmount: remainingAmount,
-            status: 'رصيد دائن',
-            invoiceNumber: `CREDIT-${Date.now()}`,
-            supplierName: payment.supplierName,
-            description: `رصيد دائن من دفعة بتاريخ ${format(date, 'yyyy-MM-dd')}`,
-        };
-        const creditDocRef = doc(collection(db, 'users', currentUser.uid, 'customerSales'));
-        batch.set(creditDocRef, { ...creditSale, date: Timestamp.fromDate(date) });
+      // If there's still money left after paying all invoices, add it as a credit balance.
+      const creditSale: Omit<CustomerSale, 'id'> = {
+        customerName,
+        date,
+        amount: remainingAmount,
+        paidAmount: remainingAmount,
+        status: 'رصيد دائن',
+        invoiceNumber: `CREDIT-${Date.now()}`,
+        supplierName: supplierName, 
+        description: `رصيد دائن من دفعة بتاريخ ${format(date, 'yyyy-MM-dd')}`,
+      };
+      const creditDocRef = doc(collection(db, 'users', currentUser.uid, 'customerSales'));
+      batch.set(creditDocRef, { ...creditSale, date: Timestamp.fromDate(date) });
     }
-    
-    // Add the payment record
+
+    // Add the customer payment record itself
     const paymentDocRef = doc(collection(db, 'users', currentUser.uid, 'customerPayments'));
     const docData = cleanDataForFirebase({ ...payment, date: Timestamp.fromDate(date) });
     batch.set(paymentDocRef, docData);
@@ -727,15 +732,18 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     // Optimistically update local state after successful commit
     const newPayment = { ...payment, id: paymentDocRef.id };
     setCustomerPayments(prev => [newPayment, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
-    
-    // Refetch customer sales to get updated state
+
+    // Refetch customer sales to get the most up-to-date state from the server
     const salesSnapshot = await getDocs(collection(db, 'users', currentUser.uid, 'customerSales'));
     const fetchedSales = salesSnapshot.docs.map(doc => {
-      const data = doc.data();
-      return { ...data, id: doc.id, date: (data.date as Timestamp).toDate() } as CustomerSale
+        const data = doc.data();
+        const saleDate = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
+        const paymentDate = data.paymentDate instanceof Timestamp ? data.paymentDate.toDate() : undefined;
+        return { ...data, id: doc.id, date: saleDate, paymentDate } as CustomerSale;
     });
-    setCustomerSales(fetchedSales.sort((a, b) => b.date.getTime() - new Date(a.date).getTime()));
-  };
+    setCustomerSales(fetchedSales.sort((a, b) => b.date.getTime() - a.date.getTime()));
+};
+
 
   const updateCustomerPayment = async (updatedPayment: CustomerPayment) => {
     if (!currentUser) throw new Error("User not authenticated");
