@@ -507,7 +507,7 @@ export default function CustomerPaymentsPage() {
     <div className="w-full px-2 py-2 sm:px-4 sm:py-4 md:px-6 md:py-6">
       <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary">مبيعات العملاء</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">مدفوعات العملاء</h1>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button onClick={() => setShowAccountingSummary(true)} variant="outline" className="w-full sm:w-auto">
@@ -576,7 +576,7 @@ export default function CustomerPaymentsPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle className="text-base sm:text-lg">سجل مبيعات العملاء</CardTitle>
+          <CardTitle className="text-base sm:text-lg">سجل مدفوعات العملاء</CardTitle>
         </CardHeader>
         <CardContent className="p-0 sm:p-6">
           <div className="relative w-full overflow-auto">
