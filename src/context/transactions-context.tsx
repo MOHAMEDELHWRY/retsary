@@ -27,6 +27,7 @@ import {
 } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './auth-context';
+import { format } from 'date-fns';
 
 // Utility function to remove undefined values from objects for Firebase
 const cleanDataForFirebase = (obj: any): any => {
