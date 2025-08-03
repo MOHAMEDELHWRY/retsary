@@ -217,7 +217,7 @@ export default function TransactionsLogPage() {
       showExecutionDate: false,
       paymentMethodToFactory: undefined,
       paymentMethodFromSupplier: undefined,
-      actualQuantityDeducted: undefined,
+      actualQuantityDeducted: 0,
       transactionDate: undefined,
       transactionNumber: ""
     },
@@ -249,6 +249,15 @@ export default function TransactionsLogPage() {
         dueDate: transaction.dueDate ? new Date(transaction.dueDate) : undefined,
         transactionDate: transaction.transactionDate ? new Date(transaction.transactionDate) : undefined,
         showExecutionDate: transaction.showExecutionDate ?? false,
+        governorate: transaction.governorate || '',
+        city: transaction.city || '',
+        description: transaction.description || '',
+        category: transaction.category || '',
+        variety: transaction.variety || '',
+        paymentMethodToFactory: transaction.paymentMethodToFactory || undefined,
+        paymentMethodFromSupplier: transaction.paymentMethodFromSupplier || undefined,
+        actualQuantityDeducted: transaction.actualQuantityDeducted || 0,
+        transactionNumber: transaction.transactionNumber || ''
       });
        if (transaction.governorate) setAvailableCities(cities[transaction.governorate] || []);
     } else {
@@ -275,7 +284,7 @@ export default function TransactionsLogPage() {
         showExecutionDate: false,
         paymentMethodToFactory: undefined,
         paymentMethodFromSupplier: undefined,
-        actualQuantityDeducted: undefined,
+        actualQuantityDeducted: 0,
         transactionNumber: ""
       });
     }
@@ -1092,3 +1101,4 @@ export default function TransactionsLogPage() {
     </div>
   );
 }
+
