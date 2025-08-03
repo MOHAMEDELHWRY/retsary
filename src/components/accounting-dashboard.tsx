@@ -1086,7 +1086,7 @@ export default function AccountingDashboard() {
                             <FormItem><FormLabel>المبلغ المدفوع للمصنع</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
                           <FormField control={form.control} name="paidBy" render={({ field }) => (
-                            <FormItem><FormLabel>القائم بالدفع</FormLabel><FormControl><Input placeholder="اسم الشخص الذي قام بالدفع" {...field} /></FormControl><FormMessage /></FormItem>
+                            <FormItem><FormLabel>القائم بالدفع</FormLabel><FormControl><Input placeholder="اسم الشخص الذي قام بالدفع" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>
                           )} />
                           <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (
                             <FormItem><FormLabel>طريقة الدفع للمصنع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
@@ -1458,20 +1458,7 @@ export default function AccountingDashboard() {
         </div>
       </div>
 
-       <div className="grid grid-cols-1 gap-8 mt-8">
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Wallet/> سجل المصروفات</CardTitle></CardHeader>
-            <CardContent>
-               <div className="relative w-full overflow-auto max-h-96">
-                <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                  <TableHeader><TableRow><TableHead>التاريخ</TableHead><TableHead>الوصف</TableHead><TableHead>المورد</TableHead><TableHead>أمر الصرف</TableHead><TableHead>المبلغ</TableHead><TableHead>إجراء</TableHead></TableRow></TableHeader>
-                  <TableBody>{expenses.length > 0 ? (expenses.map(e => (<TableRow key={e.id}><TableCell>{format(e.date, 'dd-MM-yy')}</TableCell><TableCell>{e.description}</TableCell><TableCell>{e.supplierName || '-'}</TableCell><TableCell>{e.paymentOrder || '-'}</TableCell><TableCell className="text-destructive">{e.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell><TableCell><div className="flex items-center"><Button variant="ghost" size="icon" onClick={() => handleOpenExpenseDialog(e)}><Pencil className="h-4 w-4" /></Button><AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle><AlertDialogDescription>هذا الإجراء سيحذف المصروف بشكل دائم ولا يمكن التراجع عنه.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteExpense(e.id)}>متابعة</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog></div></TableCell></TableRow>))) : (<TableRow><TableCell colSpan={6} className="h-24 text-center">لا توجد مصروفات.</TableCell></TableRow>)}</TableBody>
-                </Table>
-               </div>
-            </CardContent>
-          </Card>
-       </div>
-
+       
       {/* Dialog معاينة المرفقات */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
