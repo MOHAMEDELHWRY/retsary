@@ -127,7 +127,8 @@ export default function TransactionsLogPage() {
     transactions, addTransaction, updateTransaction, deleteTransaction, 
     loading,
     createCustomerPaymentFromTransaction,
-    supplierNames
+    supplierNames,
+    customerNames
   } = useTransactions();
   const { toast } = useToast();
 
@@ -744,9 +745,28 @@ export default function TransactionsLogPage() {
                           <FormField control={form.control} name="operationNumber" render={({ field }) => (
                             <FormItem><FormLabel>رقم العملية (اختياري)</FormLabel><FormControl><Input placeholder="رقم العملية" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
-                          <FormField control={form.control} name="customerName" render={({ field }) => (
-                            <FormItem><FormLabel>اسم العميل (اختياري)</FormLabel><FormControl><Input placeholder="اسم العميل" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
+                          <FormField
+                            control={form.control}
+                            name="customerName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>اسم العميل (اختياري)</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="اختر العميل" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {customerNames.map((name) => (
+                                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                           <FormField control={form.control} name="supplierName" render={({ field }) => (
                             <FormItem><FormLabel>اسم المورد</FormLabel><FormControl><Input placeholder="اسم المورد" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
