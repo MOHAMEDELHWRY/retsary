@@ -704,7 +704,6 @@ export default function CustomerPaymentsPage() {
                   <TableHead className="min-w-[100px]">المورد</TableHead>
                   <TableHead className="min-w-[100px]">المحافظة</TableHead>
                   <TableHead className="min-w-[100px]">المركز</TableHead>
-                  <TableHead className="min-w-[100px]">الرصيد الحالي</TableHead>
                   <TableHead className="min-w-[80px]">نوع الرصيد</TableHead>
                   <TableHead className="min-w-[80px]">الكمية</TableHead>
                   <TableHead className="min-w-[100px]">سعر البيع</TableHead>
@@ -735,13 +734,6 @@ export default function CustomerPaymentsPage() {
                       <TableCell>{payment.supplierName}</TableCell>
                       <TableCell className="text-xs">{payment.governorate || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="text-xs">{payment.city || <span className="text-muted-foreground">-</span>}</TableCell>
-                      {/* الأعمدة المحاسبية الجديدة */}
-                      <TableCell className={`font-semibold ${
-                        payment.balanceType === 'creditor' ? 'text-green-700' : 
-                        payment.balanceType === 'debtor' ? 'text-red-700' : 'text-gray-700'
-                      }`}>
-                        {payment.runningBalance !== undefined ? `${payment.runningBalance.toLocaleString('ar-EG')} ج.م` : <span className="text-muted-foreground">-</span>}
-                      </TableCell>
                       <TableCell>
                         {payment.balanceType ? (
                           <Badge variant={payment.balanceType === 'creditor' ? 'default' : payment.balanceType === 'debtor' ? 'destructive' : 'secondary'}>
