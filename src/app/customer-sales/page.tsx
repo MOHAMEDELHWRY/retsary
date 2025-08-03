@@ -57,7 +57,7 @@ export default function CustomerSalesPage() {
   const filteredSalesData = useMemo(() => {
     return customerSales
       .filter(sale => {
-        const customerMatch = customer ? sale.customerName === customer : true;
+        const customerMatch = !customer || customer === 'all_customers' ? true : sale.customerName === customer;
         const dateFromMatch = dateFrom ? new Date(sale.date) >= new Date(dateFrom) : true;
         const dateToMatch = dateTo ? new Date(sale.date) <= new Date(dateTo) : true;
         return customerMatch && dateFromMatch && dateToMatch;
@@ -274,7 +274,7 @@ export default function CustomerSalesPage() {
                   <SelectValue placeholder="اختر العميل" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">جميع العملاء</SelectItem>
+                  <SelectItem value="all_customers">جميع العملاء</SelectItem>
                   {customerNames.map(name => (
                     <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}
