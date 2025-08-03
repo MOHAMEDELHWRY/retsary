@@ -24,7 +24,7 @@ export default function CustomerSalesPage() {
   const [dateTo, setDateTo] = useState('');
   const [customer, setCustomer] = useState('all_customers');
 
-  const { addTransaction, getTransactionByOperationNumber, customerNames, customerSales, addCustomerSale, deleteCustomerSale, addCustomerPayment, loading } = useTransactions();
+  const { getTransactionByOperationNumber, customerNames, customerSales, addCustomerSale, deleteCustomerSale, addCustomerPayment, loading } = useTransactions();
   const { toast } = useToast();
 
   const [newPayment, setNewPayment] = useState({
@@ -181,30 +181,9 @@ export default function CustomerSalesPage() {
       };
 
       await addCustomerSale(newSaleData);
-
-      const transactionData = {
-        operationNumber: operationNumber,
-        customerName: newInvoice.customer.trim(),
-        date: new Date(newInvoice.date),
-        supplierName: newInvoice.customer.trim(),
-        description: `فاتورة مبيعات للعميل ${newInvoice.customer.trim()}`,
-        category: 'مبيعات',
-        variety: 'فاتورة عميل',
-        quantity: 1,
-        purchasePrice: 0,
-        totalPurchasePrice: 0,
-        sellingPrice: invoiceAmount,
-        totalSellingPrice: invoiceAmount,
-        taxes: 0,
-        profit: invoiceAmount,
-        amountPaidToFactory: 0,
-        amountReceivedFromSupplier: 0,
-      };
-
-      await addTransaction(transactionData);
       
       setNewInvoice({ customer: newInvoice.customer, amount: '', date: '', operationNumber: '' });
-      toast({ title: 'نجاح', description: `تم إضافة الفاتورة وتسجيل العملية بنجاح! رقم العملية: ${operationNumber}` });
+      toast({ title: 'نجاح', description: `تم إضافة الفاتورة بنجاح!` });
 
     } catch (error) {
       console.error('Error adding invoice:', error);
@@ -355,8 +334,6 @@ export default function CustomerSalesPage() {
           <CardTitle className="text-lg">إضافة فاتورة مبيعات جديدة</CardTitle>
           <CardDescription className="text-sm">
             أضف فاتورة مبيعات للعميل (سيتم تطبيق الدفعات تلقائياً)
-            <br />
-            <span className="text-green-600 font-medium">✅ تسجيل تلقائي في سجل العمليات بلوحة التحكم</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
