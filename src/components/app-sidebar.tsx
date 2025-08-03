@@ -49,7 +49,6 @@ export function AppSidebar() {
     { href: '/suppliers-log', label: 'سجل الموردين', icon: Users, isActive: () => pathname === '/suppliers-log' },
     { href: '/customers-log', label: 'سجل العملاء', icon: Users, isActive: () => pathname === '/customers-log' },
     { href: '/customer-cycle', label: 'العملاء', icon: Users2, isActive: () => pathname === '/customer-cycle' || pathname.startsWith('/customer-details/') },
-    { href: '/customer-payments', label: 'مبيعات العملاء', icon: CreditCard, isActive: () => pathname === '/customer-payments' },
     { href: '/customer-sales', label: 'أرصدة العملاء', icon: Receipt, isActive: () => pathname === '/customer-sales' },
     { href: '/inventory-report', label: 'تقرير المخزون التراكمي', icon: Package, isActive: () => pathname === '/inventory-report' },
     { href: '/factory-report', label: 'تقرير المصنع', icon: Factory, isActive: () => pathname === '/factory-report' },
