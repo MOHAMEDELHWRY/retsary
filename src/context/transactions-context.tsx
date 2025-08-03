@@ -671,16 +671,89 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
 
   const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
-    try {
-      const docData = cleanDataForFirebase({ ...payment, date: Timestamp.fromDate(payment.date), confirmedDate: payment.confirmedDate ? Timestamp.fromDate(payment.confirmedDate) : null });
-      const docRef = await addDoc(collection(db, 'users', currentUser.uid, 'customerPayments'), docData);
-      setCustomerPayments(prev => [{ ...payment, id: docRef.id }, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
-      toast({ title: "تم الإضافة", description: "تم إضافة مدفوعة العميل بنجاح." });
-    } catch (error) {
-      console.error("Error adding customer payment: ", error);
-      toast({ title: "خطأ", description: "لم نتمكن من إضافة مدفوعة العميل.", variant: "destructive" });
-      throw error;
+    const { customerName, amount, date } = payment;
+    let remainingAmount = amount;
+
+    // 1. Get all unpaid/partially-paid sales for this customer, sorted by date
+    const unpaidSales = customerSales
+        .filter(s => s.customerName === customerName && (s.status === 'معلق' || s.status === 'مدفوع جزئياً'))
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    const batch = writeBatch(db);
+    const updatedSalesLocally: CustomerSale[] = [];
+
+    // 2. Apply payment to each invoice sequentially
+    for (const sale of unpaidSales) {
+        if (remainingAmount <= 0) break;
+
+        const dueAmount = sale.amount - sale.paidAmount;
+        const amountToPay = Math.min(remainingAmount, dueAmount);
+
+        sale.paidAmount += amountToPay;
+        remainingAmount -= amountToPay;
+
+        if (sale.paidAmount >= sale.amount) {
+            sale.status = 'مدفوع';
+        } else {
+            sale.status = 'مدفوع جزئياً';
+        }
+        sale.paymentDate = date; // Update last payment date
+
+        const saleDocRef = doc(db, 'users', currentUser.uid, 'customerSales', sale.id);
+        batch.update(saleDocRef, {
+            paidAmount: sale.paidAmount,
+            status: sale.status,
+            paymentDate: Timestamp.fromDate(date)
+        });
+        updatedSalesLocally.push(sale);
     }
+    
+    // 3. Handle any remaining amount as a credit
+    if (remainingAmount > 0) {
+        const creditSale: Omit<CustomerSale, 'id'> = {
+            customerName: customerName,
+            date: date,
+            amount: remainingAmount,
+            paidAmount: remainingAmount,
+            status: 'رصيد دائن',
+            invoiceNumber: `CREDIT-${Date.now()}`,
+            supplierName: 'N/A',
+            description: `رصيد دائن من دفعة بتاريخ ${format(date, 'yyyy-MM-dd')}`,
+        };
+        const creditDocRef = doc(collection(db, 'users', currentUser.uid, 'customerSales'));
+        batch.set(creditDocRef, {
+            ...creditSale,
+            date: Timestamp.fromDate(date)
+        });
+        updatedSalesLocally.push({ ...creditSale, id: creditDocRef.id });
+    }
+    
+    // 4. Save payment record
+    const paymentDocRef = doc(collection(db, 'users', currentUser.uid, 'customerPayments'));
+    batch.set(paymentDocRef, {
+        ...payment,
+        date: Timestamp.fromDate(date)
+    });
+
+    // 5. Commit all changes to Firestore
+    await batch.commit();
+
+    // 6. Update local state
+    setCustomerSales(prevSales => {
+        const newSales = [...prevSales];
+        updatedSalesLocally.forEach(updatedSale => {
+            const index = newSales.findIndex(s => s.id === updatedSale.id);
+            if (index !== -1) {
+                newSales[index] = updatedSale;
+            } else {
+                newSales.push(updatedSale);
+            }
+        });
+        return newSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+    
+    setCustomerPayments(prev => [{...payment, id: paymentDocRef.id}, ...prev]
+      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   };
 
   const updateCustomerPayment = async (updatedPayment: CustomerPayment) => {
@@ -699,10 +772,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
 
   const deleteCustomerPayment = async (paymentId: string) => {
     if (!currentUser) throw new Error("User not authenticated");
+    // Note: Deleting a payment should ideally reverse the paid amounts on invoices.
+    // This is a complex operation and for now, we'll just delete the payment record.
+    // A more advanced implementation would require a transaction to update invoices.
     try {
       await deleteDoc(doc(db, 'users', currentUser.uid, 'customerPayments', paymentId));
       setCustomerPayments(prev => prev.filter(p => p.id !== paymentId));
-      toast({ title: "تم الحذف", description: "تم حذف مدفوعة العميل بنجاح." });
+      toast({ title: "تم الحذف", description: "تم حذف مدفوعة العميل بنجاح. يرجى مراجعة أرصدة الفواتير يدويًا." });
     } catch (error) {
       console.error("Error deleting customer payment: ", error);
       toast({ title: "خطأ", description: "لم نتمكن من حذف مدفوعة العميل.", variant: "destructive" });
@@ -724,19 +800,69 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addCustomerSale = async (sale: Omit<CustomerSale, 'id'>) => {
+  const addCustomerSale = async (saleData: Omit<CustomerSale, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
-    try {
-      const docData = cleanDataForFirebase({ ...sale, date: Timestamp.fromDate(sale.date) });
-      const docRef = await addDoc(collection(db, 'users', currentUser.uid, 'customerSales'), docData);
-      setCustomerSales(prev => [{ ...sale, id: docRef.id }, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
-      toast({ title: "تم الإضافة", description: "تم إضافة مبيعة العميل بنجاح." });
-    } catch (error) {
-      console.error("Error adding customer sale: ", error);
-      toast({ title: "خطأ", description: "لم نتمكن من إضافة مبيعة العميل.", variant: "destructive" });
-      throw error;
+    let amountToPay = saleData.amount;
+
+    // Find credit balances for the customer
+    const creditSales = customerSales
+        .filter(s => s.customerName === saleData.customerName && s.status === 'رصيد دائن')
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    const batch = writeBatch(db);
+    const updatedSalesLocally: CustomerSale[] = [];
+
+    // Apply credit balances to the new invoice
+    for (const credit of creditSales) {
+        if (amountToPay <= 0) break;
+        const creditAmount = credit.amount - credit.paidAmount;
+        const amountToApply = Math.min(amountToPay, creditAmount);
+
+        credit.paidAmount += amountToApply;
+        amountToPay -= amountToApply;
+        
+        const creditDocRef = doc(db, 'users', currentUser.uid, 'customerSales', credit.id);
+        if (credit.paidAmount >= credit.amount) {
+            // Delete the credit record if fully used
+            batch.delete(creditDocRef);
+        } else {
+            batch.update(creditDocRef, { paidAmount: credit.paidAmount });
+        }
+        updatedSalesLocally.push(credit);
     }
-  };
+    
+    // Create the new sale invoice
+    const newSale: Omit<CustomerSale, 'id'> = {
+        ...saleData,
+        paidAmount: saleData.amount - amountToPay,
+        status: amountToPay <= 0 ? 'مدفوع' : (amountToPay < saleData.amount ? 'مدفوع جزئياً' : 'معلق'),
+    };
+    
+    const saleDocRef = doc(collection(db, 'users', currentUser.uid, 'customerSales'));
+    batch.set(saleDocRef, { ...newSale, date: Timestamp.fromDate(newSale.date) });
+    
+    await batch.commit();
+
+    const finalNewSale = { ...newSale, id: saleDocRef.id };
+    
+    // Update local state
+    setCustomerSales(prevSales => {
+        let sales = [...prevSales];
+        updatedSalesLocally.forEach(updatedSale => {
+            const index = sales.findIndex(s => s.id === updatedSale.id);
+            if (index !== -1) {
+                if (sales[index].status === 'رصيد دائن' && sales[index].paidAmount >= sales[index].amount) {
+                    sales.splice(index, 1);
+                } else {
+                    sales[index] = updatedSale;
+                }
+            }
+        });
+        sales.push(finalNewSale);
+        return sales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    });
+};
+
 
   const updateCustomerSale = async (updatedSale: CustomerSale) => {
     if (!currentUser) throw new Error("User not authenticated");
