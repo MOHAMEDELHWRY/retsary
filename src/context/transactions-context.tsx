@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { type Transaction, type Expense, type BalanceTransfer, type SupplierPayment, type CustomerPayment, type CustomerSale, type CustomerBalance, type InventoryBalance } from '@/types';
+import { type Transaction, type Expense, type BalanceTransfer, type SupplierPayment, type CustomerPayment, type CustomerSale, type CustomerBalance, type InventoryBalance, type Supplier } from '@/types';
 import { db, storage } from '@/lib/firebase';
 import { 
   collection, 
@@ -57,32 +57,44 @@ interface TransactionsContextType {
   updateTransaction: (updatedTransaction: Transaction) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
   deleteSupplier: (supplierName: string) => Promise<void>;
+  
   expenses: Expense[];
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
   updateExpense: (updatedExpense: Expense) => Promise<void>;
   deleteExpense: (expenseId: string) => Promise<void>;
+
+  suppliers: Supplier[];
+  addSupplier: (supplier: Omit<Supplier, 'id'>) => Promise<void>;
+  updateSupplier: (updatedSupplier: Supplier) => Promise<void>;
+  deleteSupplier: (supplierId: string) => Promise<void>;
+
   balanceTransfers: BalanceTransfer[];
   addBalanceTransfer: (transfer: Omit<BalanceTransfer, 'id'>) => Promise<void>;
   updateBalanceTransfer: (updatedTransfer: BalanceTransfer) => Promise<void>;
   deleteBalanceTransfer: (transferId: string) => Promise<void>;
+  
   supplierPayments: SupplierPayment[];
   addSupplierPayment: (paymentData: Omit<SupplierPayment, 'id' | 'documentUrl' | 'documentPath'>, file?: File | null) => Promise<void>;
   updateSupplierPayment: (existingPayment: SupplierPayment, paymentData: Omit<SupplierPayment, 'id' | 'documentUrl' | 'documentPath'>, file?: File | null) => Promise<void>;
   deleteSupplierPayment: (payment: SupplierPayment) => Promise<void>;
+  
   customerPayments: CustomerPayment[];
   addCustomerPayment: (payment: Omit<CustomerPayment, 'id'>) => Promise<void>;
   updateCustomerPayment: (updatedPayment: CustomerPayment) => Promise<void>;
   deleteCustomerPayment: (paymentId: string) => Promise<void>;
   confirmCustomerPayment: (paymentId: string, confirmedBy: string) => Promise<void>;
+  
   customerSales: CustomerSale[];
   addCustomerSale: (sale: Omit<CustomerSale, 'id'>) => Promise<void>;
   updateCustomerSale: (updatedSale: CustomerSale) => Promise<void>;
   deleteCustomerSale: (saleId: string) => Promise<void>;
+  
   createCustomerPaymentDataFromTransaction: (transaction: Transaction) => Omit<CustomerPayment, 'id'>;
   createCustomerPaymentFromTransaction: (transaction: Transaction) => Promise<void>;
   getTransactionByOperationNumber: (operationNumber: string) => Transaction | undefined;
   getCustomerBalance: (customerName: string) => CustomerBalance;
   getInventoryBalance: (category: string, variety: string, customerName: string, supplierName: string, governorate: string, city: string) => InventoryBalance | null;
+  
   supplierNames: string[];
   customerNames: string[];
   loading: boolean;
@@ -96,6 +108,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [balanceTransfers, setBalanceTransfers] = useState<BalanceTransfer[]>([]);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
@@ -105,6 +118,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const supplierNames = useMemo(() => {
     const allNames = new Set<string>();
     transactions.forEach(t => allNames.add(t.supplierName));
+    suppliers.forEach(s => allNames.add(s.name));
     expenses.forEach(e => { if (e.supplierName) allNames.add(e.supplierName) });
     balanceTransfers.forEach(t => {
       allNames.add(t.fromSupplier);
@@ -112,7 +126,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     });
     supplierPayments.forEach(p => allNames.add(p.supplierName));
     return Array.from(allNames).sort((a,b) => a.localeCompare(b));
-  }, [transactions, expenses, balanceTransfers, supplierPayments]);
+  }, [transactions, suppliers, expenses, balanceTransfers, supplierPayments]);
 
   const customerNames = useMemo(() => {
     const allNames = new Set<string>();
@@ -174,6 +188,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       if (!currentUser) {
         setTransactions([]);
         setExpenses([]);
+        setSuppliers([]);
         setBalanceTransfers([]);
         setSupplierPayments([]);
         setCustomerPayments([]);
@@ -183,14 +198,34 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       }
       setLoading(true);
       try {
-        const transactionsCollectionRef = collection(db, 'users', currentUser.uid, 'transactions');
-        const expensesCollectionRef = collection(db, 'users', currentUser.uid, 'expenses');
-        const balanceTransfersCollectionRef = collection(db, 'users', currentUser.uid, 'balanceTransfers');
-        const supplierPaymentsCollectionRef = collection(db, 'users', currentUser.uid, 'supplierPayments');
-        const customerPaymentsCollectionRef = collection(db, 'users', currentUser.uid, 'customerPayments');
-        const customerSalesCollectionRef = collection(db, 'users', currentUser.uid, 'customerSales');
+        const collections = {
+          transactions: collection(db, 'users', currentUser.uid, 'transactions'),
+          expenses: collection(db, 'users', currentUser.uid, 'expenses'),
+          suppliers: collection(db, 'users', currentUser.uid, 'suppliers'),
+          balanceTransfers: collection(db, 'users', currentUser.uid, 'balanceTransfers'),
+          supplierPayments: collection(db, 'users', currentUser.uid, 'supplierPayments'),
+          customerPayments: collection(db, 'users', currentUser.uid, 'customerPayments'),
+          customerSales: collection(db, 'users', currentUser.uid, 'customerSales'),
+        };
+
+        const [
+          transactionSnapshot, 
+          expenseSnapshot, 
+          supplierSnapshot,
+          transferSnapshot, 
+          paymentSnapshot, 
+          customerPaymentSnapshot, 
+          customerSalesSnapshot
+        ] = await Promise.all([
+          getDocs(collections.transactions),
+          getDocs(collections.expenses),
+          getDocs(collections.suppliers),
+          getDocs(collections.balanceTransfers),
+          getDocs(collections.supplierPayments),
+          getDocs(collections.customerPayments),
+          getDocs(collections.customerSales),
+        ]);
         
-        const transactionSnapshot = await getDocs(transactionsCollectionRef);
         const fetchedTransactions = transactionSnapshot.docs.map(doc => {
           const data = doc.data();
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
@@ -207,7 +242,6 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         });
         setTransactions(fetchedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        const expenseSnapshot = await getDocs(expensesCollectionRef);
         const fetchedExpenses = expenseSnapshot.docs.map(doc => {
           const data = doc.data();
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
@@ -219,7 +253,12 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         });
         setExpenses(fetchedExpenses.sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        const transferSnapshot = await getDocs(balanceTransfersCollectionRef);
+        const fetchedSuppliers = supplierSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Supplier));
+        setSuppliers(fetchedSuppliers.sort((a, b) => a.name.localeCompare(b.name)));
+        
         const fetchedTransfers = transferSnapshot.docs.map(doc => {
           const data = doc.data();
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
@@ -233,7 +272,6 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         });
         setBalanceTransfers(fetchedTransfers.sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        const paymentSnapshot = await getDocs(supplierPaymentsCollectionRef);
         const fetchedPayments = paymentSnapshot.docs.map(doc => {
           const data = doc.data() as any;
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
@@ -247,42 +285,18 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         });
         setSupplierPayments(fetchedPayments.sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        const customerPaymentSnapshot = await getDocs(customerPaymentsCollectionRef);
         const fetchedCustomerPayments = customerPaymentSnapshot.docs.map(doc => {
           const data = doc.data() as any;
           
-          // معالجة التاريخ الأساسي مع التحقق من صحته
           let date: Date;
-          if (data.date instanceof Timestamp) {
-            date = data.date.toDate();
-          } else if (data.date) {
-            const parsedDate = new Date(data.date);
-            date = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-          } else {
-            date = new Date();
-          }
+          if (data.date instanceof Timestamp) date = data.date.toDate();
+          else date = data.date ? new Date(data.date) : new Date();
           
-          // معالجة تاريخ التأكيد مع التحقق من صحته
           let confirmedDate: Date | undefined;
-          if (data.confirmedDate) {
-            if (data.confirmedDate instanceof Timestamp) {
-              confirmedDate = data.confirmedDate.toDate();
-            } else {
-              const parsedDate = new Date(data.confirmedDate);
-              confirmedDate = isNaN(parsedDate.getTime()) ? undefined : parsedDate;
-            }
-          }
+          if (data.confirmedDate) confirmedDate = data.confirmedDate instanceof Timestamp ? data.confirmedDate.toDate() : new Date(data.confirmedDate);
 
-          // معالجة تاريخ الخروج مع التحقق من صحته
           let departureDate: Date | undefined;
-          if (data.departureDate) {
-            if (data.departureDate instanceof Timestamp) {
-              departureDate = data.departureDate.toDate();
-            } else {
-              const parsedDate = new Date(data.departureDate);
-              departureDate = isNaN(parsedDate.getTime()) ? undefined : parsedDate;
-            }
-          }
+          if (data.departureDate) departureDate = data.departureDate instanceof Timestamp ? data.departureDate.toDate() : new Date(data.departureDate);
 
           return {
             ...data,
@@ -295,26 +309,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         });
         setCustomerPayments(fetchedCustomerPayments.sort((a, b) => b.date.getTime() - a.date.getTime()));
 
-        const customerSalesSnapshot = await getDocs(customerSalesCollectionRef);
         const fetchedCustomerSales = customerSalesSnapshot.docs.map(doc => {
           const data = doc.data() as any;
-          
-          // معالجة التاريخ مع التحقق من صحته
           let date: Date;
-          if (data.date instanceof Timestamp) {
-            date = data.date.toDate();
-          } else if (data.date) {
-            const parsedDate = new Date(data.date);
-            date = isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
-          } else {
-            date = new Date();
-          }
+          if (data.date instanceof Timestamp) date = data.date.toDate();
+          else date = data.date ? new Date(data.date) : new Date();
 
-          return {
-            ...data,
-            id: doc.id,
-            date,
-          } as CustomerSale;
+          return { ...data, id: doc.id, date } as CustomerSale;
         });
         setCustomerSales(fetchedCustomerSales.sort((a, b) => b.date.getTime() - a.date.getTime()));
 
@@ -379,43 +380,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       const transactionDoc = doc(db, 'users', currentUser.uid, 'transactions', transactionId);
       await deleteDoc(transactionDoc);
       setTransactions(prev => prev.filter(t => t.id !== transactionId));
-      toast({
-        title: "تم الحذف",
-        description: "تم حذف العملية بنجاح.",
-        variant: "default",
-      });
+      toast({ title: "تم الحذف", description: "تم حذف العملية بنجاح." });
     } catch (error) {
       console.error("Error deleting transaction: ", error);
       toast({ title: "خطأ", description: "لم نتمكن من حذف العملية.", variant: "destructive" });
     }
   };
 
-  const deleteSupplier = async (supplierName: string) => {
-    if (!currentUser) return;
-     try {
-      const transactionsCollectionRef = collection(db, 'users', currentUser.uid, 'transactions');
-      const batch = writeBatch(db);
-      const q = query(transactionsCollectionRef, where("supplierName", "==", supplierName));
-      const querySnapshot = await getDocs(q);
-      
-      querySnapshot.forEach((doc) => {
-          batch.delete(doc.ref);
-      });
-      
-      await batch.commit();
-
-      setTransactions(prev => prev.filter(t => t.supplierName !== supplierName));
-      toast({
-        title: 'تم الحذف',
-        description: `تم حذف المورد "${supplierName}" وجميع عملياته بنجاح.`,
-        variant: 'default',
-      });
-    } catch (error) {
-       console.error("Error deleting supplier transactions: ", error);
-       toast({ title: "خطأ", description: "لم نتمكن من حذف عمليات المورد.", variant: "destructive" });
-    }
-  };
-  
   const addExpense = async (expense: Omit<Expense, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
@@ -458,15 +429,33 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       const expenseDoc = doc(db, 'users', currentUser.uid, 'expenses', expenseId);
       await deleteDoc(expenseDoc);
       setExpenses(prev => prev.filter(e => e.id !== expenseId));
-      toast({
-        title: "تم الحذف",
-        description: "تم حذف المصروف بنجاح.",
-        variant: "default",
-      });
+      toast({ title: "تم الحذف", description: "تم حذف المصروف بنجاح." });
     } catch (error) {
       console.error("Error deleting expense: ", error);
       toast({ title: "خطأ", description: "لم نتمكن من حذف المصروف.", variant: "destructive" });
     }
+  };
+
+  const addSupplier = async (supplier: Omit<Supplier, 'id'>) => {
+      if (!currentUser) throw new Error("User not authenticated");
+      const suppliersCollectionRef = collection(db, 'users', currentUser.uid, 'suppliers');
+      const docRef = await addDoc(suppliersCollectionRef, supplier);
+      setSuppliers(prev => [...prev, { id: docRef.id, ...supplier }].sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const updateSupplier = async (updatedSupplier: Supplier) => {
+      if (!currentUser) throw new Error("User not authenticated");
+      const { id, ...dataToUpdate } = updatedSupplier;
+      const supplierDoc = doc(db, 'users', currentUser.uid, 'suppliers', id);
+      await updateDoc(supplierDoc, dataToUpdate);
+      setSuppliers(prev => prev.map(s => (s.id === id ? updatedSupplier : s)).sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const deleteSupplier = async (supplierId: string) => {
+      if (!currentUser) throw new Error("User not authenticated");
+      const supplierDoc = doc(db, 'users', currentUser.uid, 'suppliers', supplierId);
+      await deleteDoc(supplierDoc);
+      setSuppliers(prev => prev.filter(s => s.id !== supplierId));
   };
 
   const addBalanceTransfer = async (transfer: Omit<BalanceTransfer, 'id'>) => {
@@ -531,132 +520,67 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         toast({ title: "تنبيه", description: "تم حذف التحويل، لكن قد تحتاج لحذف المصروف المرتبط به يدويًا."})
       }
 
-      toast({
-        title: "تم الحذف",
-        description: "تم حذف عملية التحويل بنجاح.",
-        variant: "default",
-      });
+      toast({ title: "تم الحذف", description: "تم حذف عملية التحويل بنجاح." });
     } catch (error) {
       console.error("Error deleting balance transfer: ", error);
       toast({ title: "خطأ", description: "لم نتمكن من حذف عملية التحويل.", variant: "destructive" });
     }
   };
 
-  const MAX_RETRIES = 5; // زيادة عدد المحاولات
-  const RETRY_DELAY = 3000; // زيادة وقت الانتظار بين المحاولات (3 ثواني)
+  const MAX_RETRIES = 5; 
+  const RETRY_DELAY = 3000;
   
   const uploadDocument = async (file: File, paymentId: string): Promise<{ url: string; path: string }> => {
     if (!currentUser) throw new Error("يجب تسجيل الدخول أولاً");
-    
-    // التحقق من حجم الملف (5MB كحد أقصى)
-    if (file.size > 5 * 1024 * 1024) {
-      throw new Error('حجم الملف كبير جداً. الحد الأقصى هو 5 ميجابايت');
-    }
-
-    // التحقق من نوع الملف
-    if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type)) {
-      throw new Error('نوع الملف غير مدعوم. يرجى رفع صور أو ملفات PDF فقط');
-    }
+    if (file.size > 5 * 1024 * 1024) throw new Error('حجم الملف كبير جداً. الحد الأقصى هو 5 ميجابايت');
+    if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type)) throw new Error('نوع الملف غير مدعوم. يرجى رفع صور أو ملفات PDF فقط');
 
     let lastError: Error | null = null;
-
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        // إضافة timestamp للتأكد من عدم تكرار أسماء الملفات
         const timestamp = Date.now();
         const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `users/${currentUser.uid}/payments/${paymentId}/${timestamp}_${safeFileName}`;
         const fileRef = ref(storage, filePath);
-
-        // محاولة الرفع باستخدام uploadBytes أولاً
-        await uploadBytes(fileRef, file, {
-          contentType: file.type,
-          customMetadata: {
-            paymentId,
-            uploadTime: new Date().toISOString(),
-            attempt: String(attempt + 1),
-            originalName: file.name
-          }
-        });
-
-        // بعد نجاح الرفع، نحصل على رابط التحميل
+        await uploadBytes(fileRef, file, { contentType: file.type, customMetadata: { paymentId, uploadTime: new Date().toISOString(), attempt: String(attempt + 1), originalName: file.name } });
         const downloadURL = await getDownloadURL(fileRef);
-        
-        return {
-          url: downloadURL,
-          path: filePath
-        };
-
+        return { url: downloadURL, path: filePath };
       } catch (error: any) {
         lastError = error;
         console.error(`محاولة الرفع ${attempt + 1} فشلت:`, error);
-
         if (error.code === 'storage/unknown' || error.code === 'storage/retry-limit-exceeded') {
-          // انتظار قبل المحاولة التالية
           const delay = RETRY_DELAY * Math.pow(2, attempt);
-          console.log(`انتظار ${delay/1000} ثواني قبل إعادة المحاولة...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
-
-        // إذا كان الخطأ ليس متعلقاً بـ CORS أو الاتصال، نتوقف عن المحاولة
-        throw new Error(
-          error.code === 'storage/unauthorized' 
-            ? 'غير مصرح لك برفع الملفات. يرجى تسجيل الدخول مرة أخرى.'
-            : 'حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى.'
-        );
+        throw new Error(error.code === 'storage/unauthorized' ? 'غير مصرح لك برفع الملفات.' : 'حدث خطأ أثناء رفع الملف.');
       }
     }
-
-    throw lastError || new Error('فشل رفع الملف بعد عدة محاولات. يرجى المحاولة مرة أخرى لاحقاً.');
+    throw lastError || new Error('فشل رفع الملف بعد عدة محاولات.');
   };
   
   const addSupplierPayment = async (paymentData: Omit<SupplierPayment, 'id' | 'documentUrl' | 'documentPath'>, file: File | null = null) => {
     if (!currentUser) throw new Error("User not authenticated");
-    
-    // Generate the document reference
     const paymentDocRef = doc(collection(db, 'users', currentUser.uid, 'supplierPayments'));
     const paymentId = paymentDocRef.id;
     let documentInfo: { documentUrl?: string; documentPath?: string } = {};
 
     try {
-      // Create payment document first for better UX
-      const initialPaymentData = {
-        ...paymentData,
-        date: Timestamp.fromDate(paymentData.date),
-        status: file ? 'uploading' : 'completed',
-      };
-
-      // Save initial payment data
+      const initialPaymentData = { ...paymentData, date: Timestamp.fromDate(paymentData.date), status: file ? 'uploading' : 'completed' };
       await setDoc(paymentDocRef, initialPaymentData);
 
-      // Handle file upload if exists
       if (file) {
         try {
           const uploadResult = await uploadDocument(file, paymentId);
-          documentInfo = {
-            documentUrl: uploadResult.url,
-            documentPath: uploadResult.path
-          };
-          // Update document with file info and status
-          await updateDoc(paymentDocRef, {
-            ...documentInfo,
-            status: 'completed'
-          });
+          documentInfo = { documentUrl: uploadResult.url, documentPath: uploadResult.path };
+          await updateDoc(paymentDocRef, { ...documentInfo, status: 'completed' });
         } catch (uploadError) {
-          console.error('Upload failed:', uploadError);
-          // Update document to indicate upload failure but keep the payment
           await updateDoc(paymentDocRef, { status: 'upload_failed' });
-          throw new Error('تم حفظ الدفعة ولكن فشل رفع المستند. يمكنك تعديل الدفعة لإعادة رفع المستند.');
+          throw new Error('تم حفظ الدفعة ولكن فشل رفع المستند.');
         }
       }
       
-      const finalPaymentData = {
-        ...paymentData,
-        ...documentInfo,
-        date: Timestamp.fromDate(paymentData.date),
-      };
-      
+      const finalPaymentData = { ...paymentData, ...documentInfo, date: Timestamp.fromDate(paymentData.date) };
       await setDoc(paymentDocRef, finalPaymentData);
 
       const newPayment = { ...paymentData, ...documentInfo, id: paymentId } as SupplierPayment;
@@ -670,44 +594,24 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   
   const updateSupplierPayment = async (existingPayment: SupplierPayment, paymentData: Omit<SupplierPayment, 'id'>, file: File | null = null) => {
     if (!currentUser) throw new Error("User not authenticated");
-    
     const paymentDocRef = doc(db, 'users', currentUser.uid, 'supplierPayments', existingPayment.id);
-    const updatedData: Partial<SupplierPayment> = { 
-      ...paymentData,
-      status: file ? 'uploading' : paymentData.status || 'completed'
-    };
+    const updatedData: Partial<SupplierPayment> = { ...paymentData, status: file ? 'uploading' : paymentData.status || 'completed' };
 
     try {
-      // Handle file upload/replacement
       if (file) {
-        // If a new file is uploaded, delete the old one first if it exists
-        if (existingPayment.documentPath) {
-          const oldFileRef = ref(storage, existingPayment.documentPath);
-          await deleteObject(oldFileRef).catch(error => console.warn("Old file not found, proceeding.", error));
-        }
+        if (existingPayment.documentPath) await deleteObject(ref(storage, existingPayment.documentPath)).catch(e => console.warn("Old file not found", e));
         const { url, path } = await uploadDocument(file, existingPayment.id);
         updatedData.documentUrl = url;
         updatedData.documentPath = path;
       } else if (existingPayment.documentPath && existingPayment.documentUrl) {
-          // This indicates the user removed the existing document without uploading a new one
-          const oldFileRef = ref(storage, existingPayment.documentPath);
-          await deleteObject(oldFileRef).catch(error => console.warn("Old file not found, proceeding.", error));
+          await deleteObject(ref(storage, existingPayment.documentPath)).catch(e => console.warn("Old file not found", e));
           updatedData.documentUrl = undefined;
           updatedData.documentPath = undefined;
       }
-
-      const finalDataToUpdate = {
-        ...updatedData,
-        date: Timestamp.fromDate(paymentData.date),
-      };
-
+      const finalDataToUpdate = { ...updatedData, date: Timestamp.fromDate(paymentData.date) };
       await updateDoc(paymentDocRef, finalDataToUpdate);
-      
       const updatedLocalPayment = { ...existingPayment, ...finalDataToUpdate, date: paymentData.date };
-
-      setSupplierPayments(prev => prev.map(p => 
-          p.id === existingPayment.id ? updatedLocalPayment : p
-      ).sort((a,b) => b.date.getTime() - a.date.getTime()));
+      setSupplierPayments(prev => prev.map(p => p.id === existingPayment.id ? updatedLocalPayment : p).sort((a,b) => b.date.getTime() - a.date.getTime()));
     } catch(error) {
        console.error("Error in updateSupplierPayment: ", error);
        throw error;
@@ -716,14 +620,9 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   
   const deleteSupplierPayment = async (payment: SupplierPayment) => {
     if (!currentUser) return;
-    const paymentDocRef = doc(db, 'users', currentUser.uid, 'supplierPayments', payment.id);
-    
     try {
-        await deleteDoc(paymentDocRef);
-        if (payment.documentPath) {
-            const fileRef = ref(storage, payment.documentPath);
-            await deleteObject(fileRef).catch(error => console.warn("File to delete not found, proceeding.", error));
-        }
+        await deleteDoc(doc(db, 'users', currentUser.uid, 'supplierPayments', payment.id));
+        if (payment.documentPath) await deleteObject(ref(storage, payment.documentPath)).catch(e => console.warn("File to delete not found", e));
         setSupplierPayments(prev => prev.filter(p => p.id !== payment.id));
         toast({ title: "تم الحذف", description: "تم حذف الدفعة ومستندها المرفق بنجاح." });
     } catch (error) {
@@ -732,17 +631,11 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Customer Payment Functions
   const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const customerPaymentsCollectionRef = collection(db, 'users', currentUser.uid, 'customerPayments');
-      const docData = cleanDataForFirebase({
-        ...payment,
-        date: Timestamp.fromDate(payment.date),
-        confirmedDate: payment.confirmedDate ? Timestamp.fromDate(payment.confirmedDate) : null,
-      });
-      const docRef = await addDoc(customerPaymentsCollectionRef, docData);
+      const docData = cleanDataForFirebase({ ...payment, date: Timestamp.fromDate(payment.date), confirmedDate: payment.confirmedDate ? Timestamp.fromDate(payment.confirmedDate) : null });
+      const docRef = await addDoc(collection(db, 'users', currentUser.uid, 'customerPayments'), docData);
       setCustomerPayments(prev => [{ ...payment, id: docRef.id }, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
       toast({ title: "تم الإضافة", description: "تم إضافة مدفوعة العميل بنجاح." });
     } catch (error) {
@@ -755,13 +648,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const updateCustomerPayment = async (updatedPayment: CustomerPayment) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const paymentDocRef = doc(db, 'users', currentUser.uid, 'customerPayments', updatedPayment.id);
-      const docData = cleanDataForFirebase({
-        ...updatedPayment,
-        date: Timestamp.fromDate(updatedPayment.date),
-        confirmedDate: updatedPayment.confirmedDate ? Timestamp.fromDate(updatedPayment.confirmedDate) : null,
-      });
-      await updateDoc(paymentDocRef, docData);
+      const docData = cleanDataForFirebase({ ...updatedPayment, date: Timestamp.fromDate(updatedPayment.date), confirmedDate: updatedPayment.confirmedDate ? Timestamp.fromDate(updatedPayment.confirmedDate) : null });
+      await updateDoc(doc(db, 'users', currentUser.uid, 'customerPayments', updatedPayment.id), docData);
       setCustomerPayments(prev => prev.map(p => p.id === updatedPayment.id ? updatedPayment : p).sort((a, b) => b.date.getTime() - a.date.getTime()));
       toast({ title: "تم التحديث", description: "تم تحديث مدفوعة العميل بنجاح." });
     } catch (error) {
@@ -774,8 +662,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const deleteCustomerPayment = async (paymentId: string) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const paymentDocRef = doc(db, 'users', currentUser.uid, 'customerPayments', paymentId);
-      await deleteDoc(paymentDocRef);
+      await deleteDoc(doc(db, 'users', currentUser.uid, 'customerPayments', paymentId));
       setCustomerPayments(prev => prev.filter(p => p.id !== paymentId));
       toast({ title: "تم الحذف", description: "تم حذف مدفوعة العميل بنجاح." });
     } catch (error) {
@@ -788,19 +675,9 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const confirmCustomerPayment = async (paymentId: string, confirmedBy: string) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const paymentDocRef = doc(db, 'users', currentUser.uid, 'customerPayments', paymentId);
-      const updatedData = {
-        receivedStatus: 'تم الاستلام',
-        confirmedDate: Timestamp.fromDate(new Date()),
-        confirmedBy: confirmedBy,
-      };
-      await updateDoc(paymentDocRef, updatedData);
-      setCustomerPayments(prev => prev.map(p => p.id === paymentId ? { 
-        ...p, 
-        receivedStatus: 'تم الاستلام' as const,
-        confirmedDate: new Date(),
-        confirmedBy: confirmedBy
-      } : p));
+      const updatedData = { receivedStatus: 'تم الاستلام' as const, confirmedDate: Timestamp.now(), confirmedBy };
+      await updateDoc(doc(db, 'users', currentUser.uid, 'customerPayments', paymentId), updatedData);
+      setCustomerPayments(prev => prev.map(p => p.id === paymentId ? { ...p, ...updatedData, confirmedDate: new Date() } : p));
       toast({ title: "تم التأكيد", description: "تم تأكيد استلام مدفوعة العميل بنجاح." });
     } catch (error) {
       console.error("Error confirming customer payment: ", error);
@@ -812,12 +689,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const addCustomerSale = async (sale: Omit<CustomerSale, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const customerSalesCollectionRef = collection(db, 'users', currentUser.uid, 'customerSales');
-      const docData = cleanDataForFirebase({
-        ...sale,
-        date: Timestamp.fromDate(sale.date),
-      });
-      const docRef = await addDoc(customerSalesCollectionRef, docData);
+      const docData = cleanDataForFirebase({ ...sale, date: Timestamp.fromDate(sale.date) });
+      const docRef = await addDoc(collection(db, 'users', currentUser.uid, 'customerSales'), docData);
       setCustomerSales(prev => [{ ...sale, id: docRef.id }, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
       toast({ title: "تم الإضافة", description: "تم إضافة مبيعة العميل بنجاح." });
     } catch (error) {
@@ -831,12 +704,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     if (!currentUser) throw new Error("User not authenticated");
     try {
       const { id, ...dataToUpdate } = updatedSale;
-      const saleDocRef = doc(db, 'users', currentUser.uid, 'customerSales', id);
-      const docData = cleanDataForFirebase({
-        ...dataToUpdate,
-        date: Timestamp.fromDate(updatedSale.date),
-      });
-      await updateDoc(saleDocRef, docData);
+      const docData = cleanDataForFirebase({ ...dataToUpdate, date: Timestamp.fromDate(updatedSale.date) });
+      await updateDoc(doc(db, 'users', currentUser.uid, 'customerSales', id), docData);
       setCustomerSales(prev => prev.map(s => s.id === id ? updatedSale : s).sort((a, b) => b.date.getTime() - a.date.getTime()));
       toast({ title: "تم التحديث", description: "تم تحديث مبيعة العميل بنجاح." });
     } catch (error) {
@@ -849,8 +718,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const deleteCustomerSale = async (saleId: string) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const saleDocRef = doc(db, 'users', currentUser.uid, 'customerSales', saleId);
-      await deleteDoc(saleDocRef);
+      await deleteDoc(doc(db, 'users', currentUser.uid, 'customerSales', saleId));
       setCustomerSales(prev => prev.filter(s => s.id !== saleId));
       toast({ title: "تم الحذف", description: "تم حذف مبيعة العميل بنجاح." });
     } catch (error) {
@@ -860,7 +728,6 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // دالة لإنشاء بيانات مدفوعة من عملية دون حفظها
   const createCustomerPaymentDataFromTransaction = (transaction: Transaction): Omit<CustomerPayment, 'id'> => {
     return {
       date: new Date(),
@@ -869,39 +736,26 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       amount: transaction.totalSellingPrice || 0,
       paymentMethod: 'نقدي',
       receivedStatus: 'في الانتظار',
-      
-      // البيانات المسحوبة من العملية
       operationNumber: transaction.operationNumber,
       governorate: transaction.governorate,
       city: transaction.city,
       description: transaction.description,
       quantity: transaction.quantity,
       sellingPrice: transaction.sellingPrice,
-      
-      notes: `مدفوعة تم إنشاؤها تلقائياً من العملية رقم: ${transaction.operationNumber || transaction.id}`,
+      notes: `مدفوعة من عملية ${transaction.operationNumber || transaction.id}`,
     };
   };
 
-  // دالة لإنشاء مدفوعة عميل من عملية وحفظها
   const createCustomerPaymentFromTransaction = async (transaction: Transaction): Promise<void> => {
     const paymentData = createCustomerPaymentDataFromTransaction(transaction);
     await addCustomerPayment(paymentData);
   };
 
-  // دالة للبحث عن عملية برقم العملية
   const getTransactionByOperationNumber = (operationNumber: string): Transaction | undefined => {
     return transactions.find(t => t.operationNumber === operationNumber);
   };
 
-  // دالة لحساب رصيد المخزون التراكمي
-  const getInventoryBalance = (
-    category: string, 
-    variety: string, 
-    customerName: string, 
-    supplierName: string, 
-    governorate: string, 
-    city: string
-  ): InventoryBalance | null => {
+  const getInventoryBalance = (category: string, variety: string, customerName: string, supplierName: string, governorate: string, city: string): InventoryBalance | null => {
     const relatedTransactions = transactions.filter(t => 
       (t.category === category || (!t.category && !category)) &&
       (t.variety === variety || (!t.variety && !variety)) &&
@@ -910,54 +764,32 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       (t.governorate === governorate || (!t.governorate && !governorate)) &&
       (t.city === city || (!t.city && !city))
     );
-
-    if (relatedTransactions.length === 0) {
-      return null;
-    }
-
+    if (relatedTransactions.length === 0) return null;
     const totalQuantity = relatedTransactions.reduce((sum, t) => sum + (t.quantity || 0), 0);
     const totalAmount = relatedTransactions.reduce((sum, t) => sum + (t.totalPurchasePrice || 0), 0);
     const actualQuantityDeducted = relatedTransactions.reduce((sum, t) => sum + (t.actualQuantityDeducted || 0), 0);
     const remainingQuantity = totalQuantity - actualQuantityDeducted;
     const remainingAmount = relatedTransactions.reduce((sum, t) => sum + (t.remainingAmount || 0), 0);
-    
     const lastTransaction = relatedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime())[0];
-
     return {
-      id: `${category}-${variety}-${customerName}-${supplierName}-${governorate}-${city}`,
-      category,
-      variety,
-      customerName,
-      supplierName,
-      governorate,
-      city,
-      totalQuantity,
-      totalAmount,
-      actualQuantityDeducted,
-      remainingQuantity,
-      remainingAmount,
-      lastTransactionDate: lastTransaction.date,
-      lastTransactionNumber: lastTransaction.transactionNumber || lastTransaction.operationNumber
+      id: `${category}-${variety}-${customerName}-${supplierName}-${governorate}-${city}`, category, variety, customerName, supplierName, governorate, city,
+      totalQuantity, totalAmount, actualQuantityDeducted, remainingQuantity, remainingAmount,
+      lastTransactionDate: lastTransaction.date, lastTransactionNumber: lastTransaction.transactionNumber || lastTransaction.operationNumber
     };
   };
 
-
   return (
     <TransactionsContext.Provider value={{ 
-      transactions, addTransaction, updateTransaction, deleteTransaction, deleteSupplier, 
+      transactions, addTransaction, updateTransaction, deleteTransaction, 
       expenses, addExpense, updateExpense, deleteExpense,
+      suppliers, addSupplier, updateSupplier, deleteSupplier,
       balanceTransfers, addBalanceTransfer, updateBalanceTransfer, deleteBalanceTransfer,
       supplierPayments, addSupplierPayment, updateSupplierPayment, deleteSupplierPayment,
       customerPayments, addCustomerPayment, updateCustomerPayment, deleteCustomerPayment, confirmCustomerPayment,
       customerSales, addCustomerSale, updateCustomerSale, deleteCustomerSale,
-      createCustomerPaymentDataFromTransaction,
-      createCustomerPaymentFromTransaction,
-      getTransactionByOperationNumber,
-      getCustomerBalance,
-      getInventoryBalance,
-      supplierNames,
-      customerNames,
-      loading 
+      createCustomerPaymentDataFromTransaction, createCustomerPaymentFromTransaction,
+      getTransactionByOperationNumber, getCustomerBalance, getInventoryBalance,
+      supplierNames, customerNames, loading 
     }}>
       {children}
     </TransactionsContext.Provider>

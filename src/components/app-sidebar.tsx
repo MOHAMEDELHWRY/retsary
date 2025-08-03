@@ -45,7 +45,8 @@ export function AppSidebar() {
   const menuItems = [
     { href: '/', label: 'لوحة التحكم', icon: BookUser, isActive: () => pathname === '/' },
     { href: '/transactions-log', label: 'سجل العمليات', icon: ListChecks, isActive: () => pathname === '/transactions-log' },
-    { href: '/suppliers-report', label: 'تقرير الموردين', icon: Users, isActive: () => pathname === '/suppliers-report' || pathname.startsWith('/supplier/') },
+    { href: '/suppliers-report', label: 'تقرير الموردين', icon: Users, isActive: () => pathname === '/suppliers-report' },
+    { href: '/suppliers-log', label: 'سجل الموردين', icon: Users, isActive: () => pathname === '/suppliers-log' },
     { href: '/customer-cycle', label: 'العملاء', icon: Users2, isActive: () => pathname === '/customer-cycle' || pathname.startsWith('/customer-details/') },
     { href: '/customer-payments', label: 'مدفوعات العملاء', icon: CreditCard, isActive: () => pathname === '/customer-payments' },
     { href: '/customer-sales', label: 'أرصدة العملاء', icon: Receipt, isActive: () => pathname === '/customer-sales' },

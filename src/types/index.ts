@@ -54,6 +54,15 @@ export type Expense = {
   supplierName?: string;
 };
 
+export type Supplier = {
+  id: string;
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+};
+
 export type CustomerSale = {
   id: string;
   date: Date;
