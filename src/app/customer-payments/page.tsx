@@ -843,7 +843,7 @@ export default function CustomerPaymentsPage() {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-sm">{isInstallmentPayment ? "مبلغ هذا القسط" : "المبلغ"}</FormLabel>
+                      <FormLabel className="text-sm">{isInstallmentPayment ? "مبلغ هذا القسط" : "هذا مبلغ الفاتورة"}</FormLabel>
                       <FormControl>
                         <Input type="number" placeholder="0" {...field} className="text-base" />
                       </FormControl>
