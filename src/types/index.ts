@@ -1,4 +1,5 @@
 
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -199,6 +200,7 @@ export type CustomerPayment = {
 
   // النظام المحاسبي التراكمي
   cumulativeTotalPaid?: number; // إجمالي المبلغ المدفوع تراكمياً من العميل
+  cumulativeTotalSales?: number; // إجمالي المبيعات التراكمي للعميل
   runningBalance?: number; // الرصيد الجاري (دائن/مدين)
   balanceType?: 'creditor' | 'debtor' | 'balanced'; // نوع الرصيد
   previousBalance?: number; // الرصيد السابق قبل هذه المعاملة

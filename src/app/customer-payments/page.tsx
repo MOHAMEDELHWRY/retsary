@@ -119,6 +119,7 @@ const calculateRunningBalance = async (
   runningBalance: number;
   balanceType: 'creditor' | 'debtor' | 'balanced';
   previousBalance: number;
+  cumulativeTotalSales: number; // Add this
 }> => {
   // قراءة جميع المعاملات السابقة للعميل مع المورد
   const existingTransactions = existingPayments.filter(
@@ -159,49 +160,50 @@ const calculateRunningBalance = async (
     cumulativeTotalPaid: cumulativeTotalPaid + (transactionType === 'payment' ? currentAmount : 0),
     runningBalance: newBalance,
     balanceType,
-    previousBalance
+    previousBalance,
+    cumulativeTotalSales: totalSales + (transactionType === 'sale' ? currentAmount : 0),
   };
 };
 
 const getAccountingSummary = (customerName: string, supplierName: string, existingPayments: CustomerPayment[]): CustomerAccountingSummary => {
-  const customerTransactions = existingPayments.filter(
-    (t: CustomerPayment) => t.customerName === customerName && t.supplierName === supplierName
-  );
-  
-  const totalSalesAmount = customerTransactions
-    .filter((t: CustomerPayment) => t.transactionType === 'sale')
-    .reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0);
-  
-  const totalPaidAmount = customerTransactions
-    .filter((t: CustomerPayment) => t.transactionType === 'payment')
-    .reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0);
-  
-  const currentBalance = totalPaidAmount - totalSalesAmount;
-  
-  return {
-    customerName,
-    supplierName,
-    totalSalesAmount,
-    totalPaidAmount,
-    currentBalance,
-    balanceType: currentBalance > 0 ? 'creditor' : currentBalance < 0 ? 'debtor' : 'balanced',
-    transactionCount: customerTransactions.length,
-    paymentCount: customerTransactions.filter((t: CustomerPayment) => t.transactionType === 'payment').length,
-    saleCount: customerTransactions.filter((t: CustomerPayment) => t.transactionType === 'sale').length,
-    lastTransactionDate: customerTransactions.length > 0 
-      ? Math.max(...customerTransactions.map((t: CustomerPayment) => new Date(t.date).getTime()))
-      : undefined,
-    firstTransactionDate: customerTransactions.length > 0 
-      ? Math.min(...customerTransactions.map((t: CustomerPayment) => new Date(t.date).getTime()))
-      : undefined,
-    averageTransactionAmount: customerTransactions.length > 0 
-      ? customerTransactions.reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0) / customerTransactions.length
-      : 0,
-    paymentMethods: [...new Set(customerTransactions.map((t: CustomerPayment) => t.paymentMethod))],
-    hasInstallments: customerTransactions.some((t: CustomerPayment) => t.isInstallment),
-    notes: `حساب ${customerName} مع ${supplierName}`
+    const customerTransactions = existingPayments.filter(
+      (t: CustomerPayment) => t.customerName === customerName && t.supplierName === supplierName
+    );
+    
+    const totalSalesAmount = customerTransactions
+      .filter((t: CustomerPayment) => t.transactionType === 'sale' || (t.amount < 0)) // Also consider negative amounts as sales
+      .reduce((sum: number, t: CustomerPayment) => sum + Math.abs(t.amount || 0), 0);
+    
+    const totalPaidAmount = customerTransactions
+      .filter((t: CustomerPayment) => t.transactionType === 'payment' && t.amount >= 0)
+      .reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0);
+    
+    const currentBalance = totalPaidAmount - totalSalesAmount;
+    
+    return {
+      customerName,
+      supplierName,
+      totalSalesAmount,
+      totalPaidAmount,
+      currentBalance,
+      balanceType: currentBalance > 0 ? 'creditor' : currentBalance < 0 ? 'debtor' : 'balanced',
+      transactionCount: customerTransactions.length,
+      paymentCount: customerTransactions.filter((t: CustomerPayment) => t.transactionType === 'payment').length,
+      saleCount: customerTransactions.filter((t: CustomerPayment) => t.transactionType === 'sale').length,
+      lastTransactionDate: customerTransactions.length > 0 
+        ? Math.max(...customerTransactions.map((t: CustomerPayment) => new Date(t.date).getTime()))
+        : undefined,
+      firstTransactionDate: customerTransactions.length > 0 
+        ? Math.min(...customerTransactions.map((t: CustomerPayment) => new Date(t.date).getTime()))
+        : undefined,
+      averageTransactionAmount: customerTransactions.length > 0 
+        ? customerTransactions.reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0) / customerTransactions.length
+        : 0,
+      paymentMethods: [...new Set(customerTransactions.map((t: CustomerPayment) => t.paymentMethod))],
+      hasInstallments: customerTransactions.some((t: CustomerPayment) => t.isInstallment),
+      notes: `حساب ${customerName} مع ${supplierName}`
+    };
   };
-};
 
 export default function CustomerPaymentsPage() {
   const { 
@@ -429,6 +431,7 @@ export default function CustomerPaymentsPage() {
         totalAmount: isInstallmentPayment ? data.totalAmount : data.amount,
         // النظام المحاسبي التراكمي
         cumulativeTotalPaid: accountingData.cumulativeTotalPaid,
+        cumulativeTotalSales: accountingData.cumulativeTotalSales,
         runningBalance: accountingData.runningBalance,
         balanceType: accountingData.balanceType,
         previousBalance: accountingData.previousBalance,
@@ -701,7 +704,7 @@ export default function CustomerPaymentsPage() {
                   <TableHead className="min-w-[100px]">المورد</TableHead>
                   <TableHead className="min-w-[100px]">المحافظة</TableHead>
                   <TableHead className="min-w-[100px]">المركز</TableHead>
-                  <TableHead className="min-w-[100px]">المبلغ يعبر عن المبيعات</TableHead>
+                  <TableHead className="min-w-[100px]">إجمالي المبيعات</TableHead>
                   <TableHead className="min-w-[120px]">الإجمالي المدفوع</TableHead>
                   <TableHead className="min-w-[100px]">الرصيد الحالي</TableHead>
                   <TableHead className="min-w-[80px]">نوع الرصيد</TableHead>
@@ -734,7 +737,7 @@ export default function CustomerPaymentsPage() {
                       <TableCell>{payment.supplierName}</TableCell>
                       <TableCell className="text-xs">{payment.governorate || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="text-xs">{payment.city || <span className="text-muted-foreground">-</span>}</TableCell>
-                      <TableCell className="font-bold">{payment.amount.toLocaleString('ar-EG')} ج.م</TableCell>
+                      <TableCell className="font-bold">{payment.cumulativeTotalSales?.toLocaleString('ar-EG')} ج.م</TableCell>
                       
                       {/* الأعمدة المحاسبية الجديدة */}
                       <TableCell className="font-semibold text-blue-700">
