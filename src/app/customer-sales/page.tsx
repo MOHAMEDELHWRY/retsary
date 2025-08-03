@@ -59,7 +59,7 @@ export default function CustomerSalesPage() {
       .filter(sale => {
         const customerMatch = !customer || customer === 'all_customers' ? true : sale.customerName === customer;
         const dateFromMatch = dateFrom ? new Date(sale.date) >= new Date(dateFrom) : true;
-        const dateToMatch = dateTo ? new Date(sale.date) <= new Date(dateTo) : true;
+        const dateToMatch = dateTo ? new Date(sale.date) <= dateTo : true;
         return customerMatch && dateFromMatch && dateToMatch;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -233,8 +233,8 @@ export default function CustomerSalesPage() {
 
 
   return (
-    <div className="container mx-auto p-2 space-y-4 max-w-full">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto space-y-4 max-w-full">
+      <div className="flex items-center justify-between pt-4">
         <h1 className="text-2xl font-bold text-gray-800">أرصدة العملاء</h1>
       </div>
 
@@ -632,3 +632,5 @@ export default function CustomerSalesPage() {
     </div>
   );
 }
+
+    
