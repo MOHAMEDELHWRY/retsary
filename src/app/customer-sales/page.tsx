@@ -687,7 +687,7 @@ export default function CustomerSalesPage() {
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-amount" className="text-right">
-                  مبلغ الفاتورة
+                  مبلغ البيع
                 </Label>
                 <Input
                   id="edit-amount"
