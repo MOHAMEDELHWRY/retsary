@@ -263,8 +263,12 @@ export default function CustomerPaymentsPage() {
       governorate: "",
       city: "",
       description: "",
-      quantity: undefined,
-      sellingPrice: undefined,
+      quantity: 0,
+      sellingPrice: 0,
+      isInstallment: false,
+      totalAmount: 0,
+      transactionType: 'payment',
+      accountingNotes: '',
     },
   });
 
@@ -297,8 +301,8 @@ export default function CustomerPaymentsPage() {
       form.setValue('governorate', paymentData.governorate || '');
       form.setValue('city', paymentData.city || '');
       form.setValue('description', paymentData.description || '');
-      form.setValue('quantity', paymentData.quantity || undefined);
-      form.setValue('sellingPrice', paymentData.sellingPrice || undefined);
+      form.setValue('quantity', paymentData.quantity || 0);
+      form.setValue('sellingPrice', paymentData.sellingPrice || 0);
       
       toast({ 
         title: "تم تحديث البيانات", 
@@ -341,10 +345,12 @@ export default function CustomerPaymentsPage() {
         governorate: payment.governorate || "",
         city: payment.city || "",
         description: payment.description || "",
-        quantity: payment.quantity || undefined,
-        sellingPrice: payment.sellingPrice || undefined,
+        quantity: payment.quantity || 0,
+        sellingPrice: payment.sellingPrice || 0,
         isInstallment: payment.isInstallment || false,
         totalAmount: payment.totalAmount || payment.amount,
+        transactionType: payment.transactionType || 'payment',
+        accountingNotes: payment.accountingNotes || '',
       });
       setAttachments(payment.attachments || []);
       setIsInstallmentPayment(payment.isInstallment || false);
@@ -366,6 +372,14 @@ export default function CustomerPaymentsPage() {
         departureDate: undefined,
         isInstallment: false,
         totalAmount: 0,
+        operationNumber: "",
+        governorate: "",
+        city: "",
+        description: "",
+        quantity: 0,
+        sellingPrice: 0,
+        transactionType: 'payment',
+        accountingNotes: '',
       });
       setAttachments([]);
       setIsInstallmentPayment(false);
@@ -978,8 +992,9 @@ export default function CustomerPaymentsPage() {
                           type="number"
                           placeholder="الكمية"
                           {...field}
+                          value={field.value || 0}
                           className="text-base"
-                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)}
                         />
                       </FormControl>
                       <FormMessage />
@@ -1001,8 +1016,9 @@ export default function CustomerPaymentsPage() {
                           step="0.01"
                           placeholder="سعر البيع"
                           {...field}
+                          value={field.value || 0}
                           className="text-base"
-                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                          onChange={e => field.onChange(e.target.value ? Number(e.target.value) : 0)}
                         />
                       </FormControl>
                       <FormMessage />
