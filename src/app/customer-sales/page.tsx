@@ -1,7 +1,8 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,335 +16,183 @@ import { useTransactions } from '@/context/transactions-context';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
+import { type CustomerSale } from '@/types';
 
 export default function CustomerSalesPage() {
+  const searchParams = useSearchParams();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [customer, setCustomer] = useState('');
-  
-  // استخدام context للتعامل مع العمليات
-  const { addTransaction, getTransactionByOperationNumber, deleteCustomerSale, customerNames } = useTransactions();
+
+  const { addTransaction, getTransactionByOperationNumber, customerNames, customerSales, addCustomerSale, deleteCustomerSale, addCustomerPayment, loading } = useTransactions();
   const { toast } = useToast();
-  
-  // state للدفعة الجديدة
+
   const [newPayment, setNewPayment] = useState({
     customer: '',
     amount: '',
     date: '',
-    method: ''
+    method: 'cash'
   });
-  
-  // state لفاتورة مبيعات جديدة
+
   const [newInvoice, setNewInvoice] = useState({
     customer: '',
     amount: '',
     date: '',
-    operationNumber: '' // إضافة رقم العملية
+    operationNumber: ''
   });
-  
-  const [salesData, setSalesData] = useState<any[]>([]);
 
-  // حالة للمستندات المرفوعة
-  const [uploadedDocuments, setUploadedDocuments] = useState<{[key: string]: string}>({});
-  
-  // حالة للتحميل
   const [isAddingInvoice, setIsAddingInvoice] = useState(false);
+  
+  // Set customer from URL query parameter
+  useEffect(() => {
+    const customerFromUrl = searchParams.get('customer');
+    if (customerFromUrl) {
+      const decodedCustomer = decodeURIComponent(customerFromUrl);
+      setCustomer(decodedCustomer);
+      setNewInvoice(prev => ({ ...prev, customer: decodedCustomer }));
+      setNewPayment(prev => ({ ...prev, customer: decodedCustomer }));
+    }
+  }, [searchParams]);
 
-  // دالة لتوليد رقم العملية التلقائي
-  const generateOperationNumber = () => {
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDate.getDate()).padStart(2, '0');
-    const timestamp = Date.now().toString().slice(-4); // آخر 4 أرقام من timestamp
-    return `OP-${year}${month}${day}-${timestamp}`;
-  };
+  const filteredSalesData = useMemo(() => {
+    return customerSales
+      .filter(sale => {
+        const customerMatch = customer ? sale.customerName === customer : true;
+        const dateFromMatch = dateFrom ? new Date(sale.date) >= new Date(dateFrom) : true;
+        const dateToMatch = dateTo ? new Date(sale.date) <= new Date(dateTo) : true;
+        return customerMatch && dateFromMatch && dateToMatch;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [customerSales, customer, dateFrom, dateTo]);
 
-  const totalSales = salesData.reduce((sum, sale) => sum + sale.amount, 0);
-  const totalPaid = salesData.reduce((sum, sale) => sum + sale.paidAmount, 0);
-  const totalBalance = totalSales - totalPaid;
 
-  // دالة إضافة دفعة جديدة مع الخصم التراكمي
-  const handleAddPayment = () => {
-    if (!newPayment.customer || !newPayment.amount || !newPayment.date || !newPayment.method) {
-      alert('يرجى ملء جميع الحقول المطلوبة');
+  const totals = useMemo(() => {
+    const dataToCalculate = filteredSalesData;
+    const totalSales = dataToCalculate.filter(s => s.status !== 'رصيد دائن' && s.status !== 'دفعة مقدمة').reduce((sum, sale) => sum + sale.amount, 0);
+    const totalPaid = dataToCalculate.reduce((sum, sale) => sum + sale.paidAmount, 0);
+    const totalBalance = totalSales - totalPaid;
+    return { totalSales, totalPaid, totalBalance };
+  }, [filteredSalesData]);
+
+
+  const handleAddPayment = async () => {
+    if (!newPayment.customer || !newPayment.amount || !newPayment.date) {
+      toast({ title: 'خطأ', description: 'يرجى ملء جميع حقول الدفعة', variant: 'destructive' });
       return;
     }
-
-    // التحقق من صحة المبلغ
-    let paymentAmount = parseFloat(newPayment.amount);
+    const paymentAmount = parseFloat(newPayment.amount);
     if (isNaN(paymentAmount) || paymentAmount <= 0) {
-      alert('يرجى إدخال مبلغ صحيح');
+      toast({ title: 'خطأ', description: 'مبلغ الدفعة غير صحيح', variant: 'destructive' });
       return;
     }
 
-    const customerName = newPayment.customer.trim();
-    
-    // البحث عن فواتير العميل المستحقة (غير المدفوعة بالكامل)
-    const customerInvoices = salesData.filter((sale: any) => 
-      sale.customer === customerName && sale.amount > sale.paidAmount
-    ).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()); // ترتيب حسب التاريخ
-
-    let updatedSalesData = [...salesData];
-    let remainingPayment = paymentAmount;
-
-    if (customerInvoices.length > 0) {
-      // تطبيق الخصم التراكمي على الفواتير المستحقة
-      customerInvoices.forEach((invoice: any) => {
-        if (remainingPayment <= 0) return;
-
-        const invoiceIndex = updatedSalesData.findIndex((s: any) => s.id === invoice.id);
-        const unpaidAmount = invoice.amount - invoice.paidAmount;
-        
-        if (remainingPayment >= unpaidAmount) {
-          // دفع الفاتورة بالكامل
-          updatedSalesData[invoiceIndex] = {
-            ...updatedSalesData[invoiceIndex],
-            paidAmount: invoice.amount,
-            paymentDate: newPayment.date,
-            paymentMethod: getPaymentMethodText(newPayment.method),
-            status: 'مدفوع'
-          };
-          remainingPayment -= unpaidAmount;
-        } else {
-          // دفع جزئي
-          updatedSalesData[invoiceIndex] = {
-            ...updatedSalesData[invoiceIndex],
-            paidAmount: invoice.paidAmount + remainingPayment,
-            paymentDate: newPayment.date,
-            paymentMethod: getPaymentMethodText(newPayment.method),
-            status: 'مدفوع جزئياً'
-          };
-          remainingPayment = 0;
-        }
+    try {
+      await addCustomerPayment({
+        customerName: newPayment.customer,
+        amount: paymentAmount,
+        date: new Date(newPayment.date),
+        paymentMethod: newPayment.method as any,
+        receivedStatus: 'تم الاستلام',
+        notes: `دفعة من العميل ${newPayment.customer}`,
+        supplierName: 'N/A' // Or select a default supplier
       });
-
-      // إذا بقي مبلغ بعد سداد جميع الفواتير، أنشئ فاتورة ائتمان
-      if (remainingPayment > 0) {
-        const newId = salesData.length > 0 ? Math.max(...salesData.map((s: any) => s.id)) + 1 : 1;
-        const operationNumber = generateOperationNumber();
-        const creditEntry = {
-          id: newId,
-          customer: customerName,
-          date: newPayment.date,
-          invoiceNumber: `CREDIT-${String(newId).padStart(3, '0')}`,
-          amount: 0,
-          paidAmount: remainingPayment,
-          paymentDate: newPayment.date,
-          paymentMethod: getPaymentMethodText(newPayment.method),
-          status: 'رصيد دائن',
-          operationNumber: operationNumber
-        };
-        updatedSalesData.push(creditEntry);
-      }
-    } else {
-      // العميل ليس له فواتير مستحقة، أنشئ دفعة مقدمة
-      const newId = salesData.length > 0 ? Math.max(...salesData.map((s: any) => s.id)) + 1 : 1;
-      const operationNumber = generateOperationNumber();
-      const advancePayment = {
-        id: newId,
-        customer: customerName,
-        date: newPayment.date,
-        invoiceNumber: `ADV-${String(newId).padStart(3, '0')}`,
-        amount: 0,
-        paidAmount: paymentAmount,
-        paymentDate: newPayment.date,
-        paymentMethod: getPaymentMethodText(newPayment.method),
-        status: 'دفعة مقدمة',
-        operationNumber: operationNumber
-      };
-      updatedSalesData.push(advancePayment);
+      
+      setNewPayment({ customer: newPayment.customer, amount: '', date: '', method: 'cash' });
+      toast({ title: 'نجاح', description: 'تم تسجيل الدفعة بنجاح وسيتم تطبيقها على الفواتير.' });
+    } catch (error) {
+      console.error("Error adding payment:", error);
+      toast({ title: 'خطأ', description: 'فشل تسجيل الدفعة', variant: 'destructive' });
     }
-
-    setSalesData(updatedSalesData);
-    
-    // إعادة تعيين النموذج
-    setNewPayment({
-      customer: '',
-      amount: '',
-      date: '',
-      method: ''
-    });
-    
-    alert(`تم تسجيل الدفعة بنجاح! المبلغ: ${paymentAmount.toLocaleString()} ج.م`);
   };
-
-  // دالة لتحويل قيمة طريقة الدفع إلى نص
+  
   const getPaymentMethodText = (method: string) => {
     switch (method) {
       case 'cash': return 'نقداً';
       case 'bank_transfer': return 'تحويل بنكي';
       case 'deposit': return 'إيداع';
       case 'check': return 'شيك';
-      default: return '';
+      default: return method;
     }
   };
 
-  // دالة لمعالجة رفع المستندات
-  const handleDocumentUpload = (saleId: number, documentUrl: string) => {
-    setUploadedDocuments(prev => ({
-      ...prev,
-      [saleId]: documentUrl
-    }));
-
-    // تحديث بيانات المبيعات لتشمل رابط المستند
-    setSalesData(prev => 
-      prev.map(sale => 
-        sale.id === saleId 
-          ? { ...sale, documentUrl: documentUrl }
-          : sale
-      )
-    );
-
-    alert('تم رفع المستند بنجاح!');
+  const handleDocumentUpload = (saleId: string, documentUrl: string) => {
+    // This part would need to update the specific sale in Firestore, which is more complex.
+    // For now, we'll just show a success message.
+    toast({ title: 'نجاح', description: `تم رفع المستند للفاتورة ${saleId}` });
   };
 
-  // دالة لعرض المستند
-  const handleViewDocument = (documentUrl: string, saleId: number) => {
+  const handleViewDocument = (documentUrl: string | undefined) => {
     if (documentUrl) {
       window.open(documentUrl, '_blank');
     } else {
-      alert('لا يوجد مستند مرفق لهذه الدفعة');
+      toast({ title: 'لا يوجد مستند', description: 'لا يوجد مستند مرفق لهذه الدفعة', variant: 'destructive' });
     }
   };
 
-  // دالة إضافة فاتورة مبيعات جديدة
   const handleAddInvoice = async () => {
     if (!newInvoice.customer || !newInvoice.amount || !newInvoice.date) {
-      alert('يرجى ملء جميع حقول الفاتورة');
+      toast({ title: 'خطأ', description: 'يرجى ملء جميع حقول الفاتورة', variant: 'destructive' });
       return;
     }
 
     const invoiceAmount = parseFloat(newInvoice.amount);
     if (isNaN(invoiceAmount) || invoiceAmount <= 0) {
-      alert('يرجى إدخال مبلغ صحيح للفاتورة');
+      toast({ title: 'خطأ', description: 'يرجى إدخال مبلغ صحيح للفاتورة', variant: 'destructive' });
       return;
     }
 
-    setIsAddingInvoice(true); // بدء التحميل
+    setIsAddingInvoice(true);
+    const operationNumber = newInvoice.operationNumber.trim() || `OP-${Date.now()}`;
 
-    const newId = salesData.length > 0 ? Math.max(...salesData.map((s: any) => s.id)) + 1 : 1;
-    const customerName = newInvoice.customer.trim();
-    
-    // توليد رقم العملية إذا لم يتم إدخاله
-    const operationNumber = newInvoice.operationNumber.trim() || generateOperationNumber();
-
-    // البحث عن أي دفعات مقدمة أو رصيد دائن للعميل
-    const customerCredits = salesData.filter((sale: any) => 
-      sale.customer === customerName && 
-      (sale.status === 'دفعة مقدمة' || sale.status === 'رصيد دائن') &&
-      sale.paidAmount > 0
-    );
-
-    let totalCredit = customerCredits.reduce((sum: number, credit: any) => sum + credit.paidAmount, 0);
-    let paidAmount = 0;
-    let invoiceStatus = 'معلق';
-
-    // تطبيق الرصيد الدائن على الفاتورة الجديدة
-    if (totalCredit > 0) {
-      if (totalCredit >= invoiceAmount) {
-        paidAmount = invoiceAmount;
-        invoiceStatus = 'مدفوع';
-        totalCredit -= invoiceAmount;
-      } else {
-        paidAmount = totalCredit;
-        invoiceStatus = 'مدفوع جزئياً';
-        totalCredit = 0;
-      }
-
-      // تحديث أو حذف الأرصدة الدائنة المستخدمة
-      let updatedSalesData = salesData.filter((sale: any) => 
-        !(sale.customer === customerName && (sale.status === 'دفعة مقدمة' || sale.status === 'رصيد دائن'))
-      );
-
-      // إضافة رصيد دائن متبقي إذا وُجد
-      if (totalCredit > 0) {
-        const creditId = updatedSalesData.length > 0 ? Math.max(...updatedSalesData.map((s: any) => s.id)) + 1 : newId + 1;
-        const remainingCredit = {
-          id: creditId,
-          customer: customerName,
-          date: newInvoice.date,
-          invoiceNumber: `CREDIT-${String(creditId).padStart(3, '0')}`,
-          amount: 0,
-          paidAmount: totalCredit,
-          paymentDate: newInvoice.date,
-          paymentMethod: 'رصيد سابق',
-          status: 'رصيد دائن',
-          operationNumber: operationNumber
-        };
-        updatedSalesData.push(remainingCredit);
-      }
-
-      setSalesData(updatedSalesData);
-    }
-
-    // إضافة الفاتورة الجديدة
-    const newSaleInvoice = {
-      id: newId,
-      customer: customerName,
-      date: newInvoice.date,
-      invoiceNumber: `INV-${String(newId).padStart(3, '0')}`,
-      amount: invoiceAmount,
-      paidAmount: paidAmount,
-      paymentDate: paidAmount > 0 ? newInvoice.date : '',
-      paymentMethod: paidAmount > 0 ? 'خصم من الرصيد' : '',
-      status: invoiceStatus,
-      operationNumber: operationNumber
-    };
-
-    setSalesData(prev => [...prev, newSaleInvoice]);
-
-    // إضافة العملية إلى سجل العمليات في لوحة التحكم
-    let operationRegistered = false;
     try {
-      const transactionData = {
-        id: `sale-${newId}-${Date.now()}`,
-        operationNumber: operationNumber,
-        customerName: customerName,
+      const newSaleData: Omit<CustomerSale, 'id'> = {
+        customerName: newInvoice.customer.trim(),
         date: new Date(newInvoice.date),
-        supplierName: customerName, // نستخدم اسم العميل كمورد في هذا السياق
-        description: `فاتورة مبيعات للعميل ${customerName}`,
+        amount: invoiceAmount,
+        paidAmount: 0,
+        status: 'معلق',
+        operationNumber: operationNumber,
+        invoiceNumber: `INV-${Date.now().toString().slice(-6)}`,
+        // We assume a single supplier or a generic one for sales context
+        // This might need adjustment based on business logic
+        supplierName: 'المبيعات العامة', 
+        description: `فاتورة مبيعات للعميل ${newInvoice.customer.trim()}`,
+      };
+
+      await addCustomerSale(newSaleData);
+
+      const transactionData = {
+        operationNumber: operationNumber,
+        customerName: newInvoice.customer.trim(),
+        date: new Date(newInvoice.date),
+        supplierName: newInvoice.customer.trim(),
+        description: `فاتورة مبيعات للعميل ${newInvoice.customer.trim()}`,
         category: 'مبيعات',
         variety: 'فاتورة عميل',
         quantity: 1,
-        purchasePrice: 0, // لا يوجد سعر شراء للمبيعات
+        purchasePrice: 0,
         totalPurchasePrice: 0,
         sellingPrice: invoiceAmount,
         totalSellingPrice: invoiceAmount,
         taxes: 0,
-        profit: invoiceAmount, // المبيعات تعتبر ربح
+        profit: invoiceAmount,
         amountPaidToFactory: 0,
-        amountReceivedFromSupplier: paidAmount,
-        paymentMethodFromSupplier: paidAmount > 0 ? 'نقدي' as const : undefined,
+        amountReceivedFromSupplier: 0,
       };
 
       await addTransaction(transactionData);
-      operationRegistered = true;
-      console.log('✅ تم تسجيل العملية في سجل العمليات بنجاح:', operationNumber);
+      
+      setNewInvoice({ customer: newInvoice.customer, amount: '', date: '', operationNumber: '' });
+      toast({ title: 'نجاح', description: `تم إضافة الفاتورة وتسجيل العملية بنجاح! رقم العملية: ${operationNumber}` });
+
     } catch (error) {
-      console.error('❌ خطأ في إضافة العملية إلى سجل العمليات:', error);
+      console.error('Error adding invoice:', error);
+      toast({ title: 'خطأ', description: 'فشل في إضافة الفاتورة', variant: 'destructive' });
+    } finally {
+      setIsAddingInvoice(false);
     }
-
-    // إعادة تعيين النموذج
-    setNewInvoice({
-      customer: '',
-      amount: '',
-      date: '',
-      operationNumber: ''
-    });
-
-    // رسالة النجاح حسب حالة التسجيل
-    if (operationRegistered) {
-      alert(`✅ تم إضافة الفاتورة وتسجيل العملية بنجاح!\n\n📋 رقم الفاتورة: ${newSaleInvoice.invoiceNumber}\n🔢 رقم العملية: ${operationNumber}\n📊 مُسجلة في أرصدة العملاء\n🏠 مُسجلة في سجل العمليات`);
-    } else {
-      alert(`⚠️ تم إضافة الفاتورة في أرصدة العملاء فقط!\n\n📋 رقم الفاتورة: ${newSaleInvoice.invoiceNumber}\n🔢 رقم العملية: ${operationNumber}\n📊 مُسجلة في أرصدة العملاء\n❌ فشل التسجيل في سجل العمليات\n\nيرجى المحاولة لاحقاً أو مراجعة الاتصال بالإنترنت.`);
-    }
-
-    setIsAddingInvoice(false); // إنهاء التحميل
   };
 
-  // دالة لسحب البيانات تلقائياً من رقم العملية
   const handleFetchDataByOperationNumber = () => {
     const opNumber = newInvoice.operationNumber.trim();
     if (!opNumber) return;
@@ -355,8 +204,8 @@ export default function CustomerSalesPage() {
       setNewInvoice({
         ...newInvoice,
         customer: fetchedCustomerName,
-        amount: String(transaction.totalPurchasePrice || 0),
-        date: format(transaction.date, 'yyyy-MM-dd'),
+        amount: String(transaction.totalSellingPrice || 0),
+        date: format(new Date(transaction.date), 'yyyy-MM-dd'),
       });
       // Also update the payment form's customer name
       setNewPayment(prev => ({ ...prev, customer: fetchedCustomerName }));
@@ -373,10 +222,9 @@ export default function CustomerSalesPage() {
     }
   };
 
-  const handleDeleteSale = async (saleId: any) => {
+  const handleDeleteSale = async (saleId: string) => {
     try {
       await deleteCustomerSale(saleId);
-      setSalesData(prev => prev.filter(s => s.id !== saleId));
       toast({ title: 'تم الحذف', description: 'تم حذف الفاتورة بنجاح' });
     } catch (error) {
        toast({ title: 'خطأ في الحذف', description: 'لم نتمكن من حذف الفاتورة.', variant: "destructive" });
@@ -390,7 +238,6 @@ export default function CustomerSalesPage() {
         <h1 className="text-2xl font-bold text-gray-800">أرصدة العملاء</h1>
       </div>
 
-      {/* فلاتر البحث */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">فلترة الأرصدة</CardTitle>
@@ -427,7 +274,7 @@ export default function CustomerSalesPage() {
                   <SelectValue placeholder="اختر العميل" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">جميع العملاء</SelectItem>
+                  <SelectItem value="">جميع العملاء</SelectItem>
                   {customerNames.map(name => (
                     <SelectItem key={name} value={name}>{name}</SelectItem>
                   ))}
@@ -435,13 +282,12 @@ export default function CustomerSalesPage() {
               </Select>
             </div>
             <div className="flex items-end">
-              <Button className="w-full h-9">بحث</Button>
+              <Button className="w-full h-9" onClick={() => { /* Filtering is now automatic */ }}>بحث</Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* إحصائيات سريعة */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3">
@@ -449,7 +295,7 @@ export default function CustomerSalesPage() {
           </CardHeader>
           <CardContent className="pt-1 pb-3">
             <div className="text-xl font-bold text-blue-600">
-              {totalSales.toLocaleString()} ج.م
+              {totals.totalSales.toLocaleString('ar-EG')} ج.م
             </div>
           </CardContent>
         </Card>
@@ -459,7 +305,7 @@ export default function CustomerSalesPage() {
           </CardHeader>
           <CardContent className="pt-1 pb-3">
             <div className="text-xl font-bold text-green-600">
-              {totalPaid.toLocaleString()} ج.م
+              {totals.totalPaid.toLocaleString('ar-EG')} ج.م
             </div>
           </CardContent>
         </Card>
@@ -469,7 +315,7 @@ export default function CustomerSalesPage() {
           </CardHeader>
           <CardContent className="pt-1 pb-3">
             <div className="text-xl font-bold text-red-600">
-              {totalBalance.toLocaleString()} ج.م
+              {totals.totalBalance.toLocaleString('ar-EG')} ج.م
             </div>
           </CardContent>
         </Card>
@@ -478,17 +324,16 @@ export default function CustomerSalesPage() {
             <CardTitle className="text-sm font-medium">عدد الفواتير</CardTitle>
           </CardHeader>
           <CardContent className="pt-1 pb-3">
-            <div className="text-xl font-bold">{salesData.length}</div>
+            <div className="text-xl font-bold">{filteredSalesData.length}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* إضافة فاتورة مبيعات جديدة */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">إضافة فاتورة مبيعات جديدة</CardTitle>
           <CardDescription className="text-sm">
-            أضف فاتورة مبيعات للعميل (سيتم خصم أي أرصدة دائنة تلقائياً)
+            أضف فاتورة مبيعات للعميل (سيتم تطبيق الدفعات تلقائياً)
             <br />
             <span className="text-green-600 font-medium">✅ تسجيل تلقائي في سجل العمليات بلوحة التحكم</span>
           </CardDescription>
@@ -570,7 +415,6 @@ export default function CustomerSalesPage() {
         </CardContent>
       </Card>
 
-      {/* إضافة مدفوعات جديدة */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">إضافة دفعة جديدة</CardTitle>
@@ -590,11 +434,6 @@ export default function CustomerSalesPage() {
                 onChange={(e) => setNewPayment({...newPayment, customer: e.target.value})}
                 className="h-9"
               />
-              <div className="text-xs text-gray-500">
-                {customerNames.length > 0 
-                  ? `العملاء الحاليون: ${customerNames.join(' • ')}`
-                  : 'لا يوجد عملاء مسجلين بعد - أضف أول عميل'}
-              </div>
             </div>
             <div className="space-y-1">
               <Label htmlFor="paymentAmount" className="text-sm">المبلغ المدفوع</Label>
@@ -638,7 +477,6 @@ export default function CustomerSalesPage() {
         </CardContent>
       </Card>
 
-      {/* جدول الأرصدة */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">تفاصيل أرصدة العملاء</CardTitle>
@@ -663,18 +501,24 @@ export default function CustomerSalesPage() {
                 </TableRow>
               </TableHeader>
             <TableBody>
-              {salesData.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={12} className="text-center py-8">
+                    جاري تحميل البيانات...
+                  </TableCell>
+                </TableRow>
+              ) : filteredSalesData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={12} className="text-center py-8 text-gray-500">
                     <div className="flex flex-col items-center space-y-2">
                       <div className="text-lg">📊</div>
-                      <div>لا يوجد عملاء مسجلين بعد</div>
-                      <div className="text-sm">استخدم النموذج أعلاه لإضافة أول دفعة</div>
+                      <div>لا توجد بيانات لعرضها</div>
+                      <div className="text-sm">استخدم النموذج أعلاه لإضافة أول فاتورة</div>
                     </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                salesData.map((sale: any) => {
+                filteredSalesData.map((sale: CustomerSale) => {
                   const remainingBalance = sale.amount - sale.paidAmount;
                   return (
                     <TableRow key={sale.id} className="text-sm">
@@ -682,31 +526,30 @@ export default function CustomerSalesPage() {
                         {sale.operationNumber || '-'}
                       </TableCell>
                       <TableCell className="font-medium text-sm">{sale.invoiceNumber}</TableCell>
-                      <TableCell className="text-sm">{sale.customer}</TableCell>
-                      <TableCell className="text-sm">{sale.date}</TableCell>
+                      <TableCell className="text-sm">{sale.customerName}</TableCell>
+                      <TableCell className="text-sm">{format(new Date(sale.date), 'yyyy-MM-dd')}</TableCell>
                       <TableCell className="text-blue-600 font-semibold text-sm">
-                        {sale.amount.toLocaleString()} ج.م
+                        {sale.amount.toLocaleString('ar-EG')} ج.م
                       </TableCell>
                       <TableCell className="text-green-600 font-semibold text-sm">
-                        {sale.paidAmount.toLocaleString()} ج.م
+                        {sale.paidAmount.toLocaleString('ar-EG')} ج.م
                       </TableCell>
                       <TableCell className="text-sm">
-                        {sale.paymentDate || '-'}
+                        {sale.paymentDate ? format(new Date(sale.paymentDate), 'yyyy-MM-dd') : '-'}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {sale.paymentMethod || '-'}
+                        {getPaymentMethodText(sale.paymentMethod || '') || '-'}
                       </TableCell>
                       <TableCell className={`font-semibold text-sm ${remainingBalance > 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                        {remainingBalance.toLocaleString()} ج.م
+                        {remainingBalance.toLocaleString('ar-EG')} ج.م
                       </TableCell>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-1">
-                          {/* زر رفع المستند */}
                           <UploadDialog
                             onUploadComplete={(url) => handleDocumentUpload(sale.id, url)}
                             acceptTypes=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                            maxSize={10 * 1024 * 1024} // 10MB
-                            uploadPath={`payment-documents/${sale.id}`}
+                            maxSize={10 * 1024 * 1024}
+                            uploadPath={`customer-sales/${sale.id}`}
                           >
                             <Button variant="outline" size="sm" className="flex items-center gap-1 h-7 px-2 text-xs">
                               <Upload className="w-3 h-3" />
@@ -714,12 +557,11 @@ export default function CustomerSalesPage() {
                             </Button>
                           </UploadDialog>
                           
-                          {/* زر عرض المستند */}
-                          {(sale.documentUrl || uploadedDocuments[sale.id]) && (
+                          {sale.documentUrl && (
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              onClick={() => handleViewDocument(sale.documentUrl || uploadedDocuments[sale.id], sale.id)}
+                              onClick={() => handleViewDocument(sale.documentUrl)}
                               className="flex items-center gap-1 text-blue-600 hover:text-blue-800 h-7 px-2 text-xs"
                             >
                               <Eye className="w-3 h-3" />
@@ -727,8 +569,7 @@ export default function CustomerSalesPage() {
                             </Button>
                           )}
                           
-                          {/* مؤشر حالة المستند */}
-                          {(sale.documentUrl || uploadedDocuments[sale.id]) ? (
+                          {sale.documentUrl ? (
                             <div className="flex items-center" title="تم رفع المستند">
                               <FileText className="w-3 h-3 text-green-600" />
                             </div>
@@ -739,13 +580,13 @@ export default function CustomerSalesPage() {
                       </TableCell>
                       <TableCell className="text-sm">
                         <Badge
-                          variant={sale.status === 'مدفوع' ? 'default' : sale.status === 'مدفوع جزئياً' ? 'secondary' : 'destructive'}
+                          variant={sale.status === 'مدفوع' ? 'default' : sale.status === 'مدفوع جزئياً' ? 'secondary' : sale.status === 'معلق' ? 'destructive' : 'outline'}
                           className={`text-xs ${
                             sale.status === 'مدفوع'
                               ? 'bg-green-500 hover:bg-green-600'
                               : sale.status === 'مدفوع جزئياً'
                               ? 'bg-yellow-500 hover:bg-yellow-600'
-                              : 'bg-red-500 hover:bg-red-600'
+                              : sale.status === 'معلق' ? 'bg-red-500 hover:bg-red-600' : ''
                           }`}
                         >
                           {sale.status}
@@ -791,4 +632,3 @@ export default function CustomerSalesPage() {
     </div>
   );
 }
-

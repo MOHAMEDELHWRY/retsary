@@ -1,3 +1,4 @@
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -78,8 +79,14 @@ export type CustomerSale = {
   customerName: string;
   supplierName: string;
   amount: number;
+  paidAmount: number;
+  status: 'مدفوع' | 'مدفوع جزئياً' | 'معلق' | 'رصيد دائن' | 'دفعة مقدمة';
+  invoiceNumber: string;
+  operationNumber?: string;
   description?: string;
-  invoiceNumber?: string;
+  paymentDate?: Date;
+  paymentMethod?: string;
+  documentUrl?: string;
   notes?: string;
 };
 
