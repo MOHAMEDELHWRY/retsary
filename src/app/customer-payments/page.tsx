@@ -77,7 +77,6 @@ const customerPaymentSchema = z.object({
   date: z.date({ required_error: "التاريخ مطلوب." }),
   customerName: z.string().trim().min(1, "اسم العميل مطلوب."),
   supplierName: z.string().trim().min(1, "اسم المورد مطلوب."),
-  // قبول القيمة صفر: يمكن إدخال 0 في حالة عدم الدفع
   amount: z.coerce.number().min(0, "المبلغ يجب أن يكون صفرًا أو أكبر."),
   paymentMethod: z.enum(['نقدي', 'تحويل بنكي', 'إيداع'], {
     required_error: "طريقة الدفع مطلوبة."
@@ -93,90 +92,68 @@ const customerPaymentSchema = z.object({
   departureDate: z.date().optional(),
   isInstallment: z.boolean().optional(),
   totalAmount: z.coerce.number().optional(),
-  // الحقول الجديدة المسحوبة من العمليات
   operationNumber: z.string().optional(),
   governorate: z.string().optional(),
   city: z.string().optional(),
   description: z.string().optional(),
   quantity: z.coerce.number().optional(),
   sellingPrice: z.coerce.number().optional(),
-  // النظام المحاسبي التراكمي
   transactionType: z.enum(['payment', 'sale', 'adjustment']).optional().default('payment'),
   accountingNotes: z.string().optional(),
 });
 
 type CustomerPaymentFormData = z.infer<typeof customerPaymentSchema>;
 
-// وظائف النظام المحاسبي التراكمي
-const calculateRunningBalance = async (
+const calculateRunningBalance = (
   customerName: string, 
   supplierName: string, 
-  currentAmount: number, 
-  transactionType: 'payment' | 'sale' | 'adjustment' = 'payment',
-  existingPayments: CustomerPayment[]
-): Promise<{
-  cumulativeTotalPaid: number;
-  runningBalance: number;
-  balanceType: 'creditor' | 'debtor' | 'balanced';
-  previousBalance: number;
-  cumulativeTotalSales: number; // Add this
-}> => {
-  // قراءة جميع المعاملات السابقة للعميل مع المورد
-  const existingTransactions = existingPayments.filter(
-    (t: CustomerPayment) => t.customerName === customerName && t.supplierName === supplierName
-  );
-  
-  // حساب إجمالي المبلغ المدفوع
-  const cumulativeTotalPaid = existingTransactions
-    .filter((t: CustomerPayment) => t.transactionType === 'payment')
-    .reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0);
-  
-  // حساب إجمالي المبيعات
-  const totalSales = existingTransactions
-    .filter((t: CustomerPayment) => t.transactionType === 'sale')
-    .reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0);
-  
-  const previousBalance = cumulativeTotalPaid - totalSales;
-  
-  // حساب الرصيد الجديد
-  let newBalance = previousBalance;
-  if (transactionType === 'payment') {
-    newBalance = previousBalance + currentAmount;
-  } else if (transactionType === 'sale') {
-    newBalance = previousBalance - currentAmount;
-  }
-  
-  // تحديد نوع الرصيد
-  let balanceType: 'creditor' | 'debtor' | 'balanced';
-  if (newBalance > 0) {
-    balanceType = 'creditor'; // رصيد دائن (العميل دفع أكثر)
-  } else if (newBalance < 0) {
-    balanceType = 'debtor'; // رصيد مدين (العميل مدين)
-  } else {
-    balanceType = 'balanced'; // رصيد متوازن
-  }
-  
-  return {
-    cumulativeTotalPaid: cumulativeTotalPaid + (transactionType === 'payment' ? currentAmount : 0),
-    runningBalance: newBalance,
-    balanceType,
-    previousBalance,
-    cumulativeTotalSales: totalSales + (transactionType === 'sale' ? currentAmount : 0),
-  };
+  allPayments: CustomerPayment[]
+): CustomerPayment[] => {
+  const customerTransactions = allPayments
+    .filter(t => t.customerName === customerName && t.supplierName === supplierName)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  let runningBalance = 0;
+  let cumulativePaid = 0;
+  let cumulativeSales = 0;
+
+  return customerTransactions.map(t => {
+    if (t.transactionType === 'payment') {
+      cumulativePaid += t.amount;
+    } else if (t.transactionType === 'sale') {
+      cumulativeSales += t.amount;
+    }
+    runningBalance = cumulativePaid - cumulativeSales;
+    
+    let balanceType: 'creditor' | 'debtor' | 'balanced' = 'balanced';
+    if (runningBalance > 0) {
+      balanceType = 'creditor';
+    } else if (runningBalance < 0) {
+      balanceType = 'debtor';
+    }
+    
+    return {
+      ...t,
+      cumulativeTotalPaid: cumulativePaid,
+      cumulativeTotalSales: cumulativeSales,
+      runningBalance: runningBalance,
+      balanceType,
+    };
+  });
 };
 
 const getAccountingSummary = (customerName: string, supplierName: string, existingPayments: CustomerPayment[]): CustomerAccountingSummary => {
     const customerTransactions = existingPayments.filter(
-      (t: CustomerPayment) => t.customerName === customerName && t.supplierName === supplierName
+      (t) => t.customerName === customerName && t.supplierName === supplierName
     );
     
     const totalSalesAmount = customerTransactions
-      .filter((t: CustomerPayment) => t.transactionType === 'sale' || (t.amount < 0)) // Also consider negative amounts as sales
-      .reduce((sum: number, t: CustomerPayment) => sum + Math.abs(t.amount || 0), 0);
+      .filter(t => t.transactionType === 'sale')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const totalPaidAmount = customerTransactions
-      .filter((t: CustomerPayment) => t.transactionType === 'payment' && t.amount >= 0)
-      .reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0);
+      .filter(t => t.transactionType === 'payment')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     const currentBalance = totalPaidAmount - totalSalesAmount;
     
@@ -188,19 +165,19 @@ const getAccountingSummary = (customerName: string, supplierName: string, existi
       currentBalance,
       balanceType: currentBalance > 0 ? 'creditor' : currentBalance < 0 ? 'debtor' : 'balanced',
       transactionCount: customerTransactions.length,
-      paymentCount: customerTransactions.filter((t: CustomerPayment) => t.transactionType === 'payment').length,
-      saleCount: customerTransactions.filter((t: CustomerPayment) => t.transactionType === 'sale').length,
+      paymentCount: customerTransactions.filter(t => t.transactionType === 'payment').length,
+      saleCount: customerTransactions.filter(t => t.transactionType === 'sale').length,
       lastTransactionDate: customerTransactions.length > 0 
-        ? Math.max(...customerTransactions.map((t: CustomerPayment) => new Date(t.date).getTime()))
+        ? Math.max(...customerTransactions.map(t => new Date(t.date).getTime()))
         : undefined,
       firstTransactionDate: customerTransactions.length > 0 
-        ? Math.min(...customerTransactions.map((t: CustomerPayment) => new Date(t.date).getTime()))
+        ? Math.min(...customerTransactions.map(t => new Date(t.date).getTime()))
         : undefined,
       averageTransactionAmount: customerTransactions.length > 0 
-        ? customerTransactions.reduce((sum: number, t: CustomerPayment) => sum + (t.amount || 0), 0) / customerTransactions.length
+        ? customerTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) / customerTransactions.length
         : 0,
-      paymentMethods: [...new Set(customerTransactions.map((t: CustomerPayment) => t.paymentMethod))],
-      hasInstallments: customerTransactions.some((t: CustomerPayment) => t.isInstallment),
+      paymentMethods: [...new Set(customerTransactions.map(t => t.paymentMethod))],
+      hasInstallments: customerTransactions.some(t => t.isInstallment),
       notes: `حساب ${customerName} مع ${supplierName}`
     };
   };
@@ -230,10 +207,20 @@ export default function CustomerPaymentsPage() {
   const [isInstallmentPayment, setIsInstallmentPayment] = useState(false);
   const [installmentPlan, setInstallmentPlan] = useState<any>(null);
   const [showAccountingSummary, setShowAccountingSummary] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>('');
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('');
 
-  // إحصائيات النظام المحاسبي
+  const processedPayments = useMemo(() => {
+    const allProcessed: CustomerPayment[] = [];
+    const customerSupplierPairs = new Set(customerPayments.map(p => `${p.customerName}-${p.supplierName}`));
+
+    customerSupplierPairs.forEach(pair => {
+      const [customerName, supplierName] = pair.split('-');
+      const processedPair = calculateRunningBalance(customerName, supplierName, customerPayments);
+      allProcessed.push(...processedPair);
+    });
+
+    return allProcessed.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [customerPayments]);
+  
   const customerSupplierPairs = useMemo(() => {
     const pairs = new Set(customerPayments.map(p => `${p.customerName}-${p.supplierName}`));
     return Array.from(pairs).map(pair => {
@@ -283,15 +270,13 @@ export default function CustomerPaymentsPage() {
 
   const { watch } = form;
   const watchedPaymentMethod = watch("paymentMethod");
-
-  // Get unique customer names
+  
   const customerNames = useMemo(() => {
     const paymentCustomers = new Set(customerPayments.map(p => p.customerName));
     const allCustomers = new Set([...paymentCustomers, ...allCustomerNames]);
     return Array.from(allCustomers).sort();
   }, [customerPayments, allCustomerNames]);
-
-  // Get customer balances
+  
   const customerBalances = useMemo(() => {
     return customerNames.map(customerName => ({
       customerName,
@@ -299,7 +284,6 @@ export default function CustomerPaymentsPage() {
     }));
   }, [customerNames, getCustomerBalance]);
 
-  // دالة لملء البيانات تلقائياً من رقم العملية
   const handleOperationNumberChange = (operationNumber: string) => {
     if (!operationNumber.trim()) return;
     
@@ -307,7 +291,6 @@ export default function CustomerPaymentsPage() {
     if (transaction) {
       const paymentData = createCustomerPaymentDataFromTransaction(transaction);
       
-      // تحديث الحقول في النموذج
       form.setValue('customerName', paymentData.customerName);
       form.setValue('supplierName', paymentData.supplierName);
       form.setValue('amount', paymentData.amount);
@@ -330,21 +313,13 @@ export default function CustomerPaymentsPage() {
     }
   };
 
-  // Calculate totals
   const totals = useMemo(() => {
-    const totalAmount = customerPayments.reduce((sum, payment) => sum + payment.amount, 0);
-    const receivedAmount = customerPayments
-      .filter(p => p.receivedStatus === 'تم الاستلام')
-      .reduce((sum, payment) => sum + payment.amount, 0);
-    const pendingAmount = customerPayments
-      .filter(p => p.receivedStatus === 'في الانتظار')
-      .reduce((sum, payment) => sum + payment.amount, 0);
-    const notReceivedAmount = customerPayments
-      .filter(p => p.receivedStatus === 'لم يتم الاستلام')
-      .reduce((sum, payment) => sum + payment.amount, 0);
+    const totalAmount = processedPayments.filter(p => p.transactionType === 'sale').reduce((sum, payment) => sum + payment.amount, 0);
+    const receivedAmount = processedPayments.filter(p => p.transactionType === 'payment').reduce((sum, payment) => sum + payment.amount, 0);
+    const balance = receivedAmount - totalAmount;
 
-    return { totalAmount, receivedAmount, pendingAmount, notReceivedAmount };
-  }, [customerPayments]);
+    return { totalAmount, receivedAmount, balance };
+  }, [processedPayments]);
 
   const handleOpenDialog = (payment: CustomerPayment | null = null) => {
     if (payment) {
@@ -371,9 +346,7 @@ export default function CustomerPaymentsPage() {
         isInstallment: payment.isInstallment || false,
         totalAmount: payment.totalAmount || payment.amount,
       });
-      // Load existing attachments
       setAttachments(payment.attachments || []);
-      // Load installment settings
       setIsInstallmentPayment(payment.isInstallment || false);
       setInstallmentPlan(payment.installmentPlan || null);
     } else {
@@ -394,9 +367,7 @@ export default function CustomerPaymentsPage() {
         isInstallment: false,
         totalAmount: 0,
       });
-      // Clear attachments for new payment
       setAttachments([]);
-      // Clear installment settings
       setIsInstallmentPayment(false);
       setInstallmentPlan(null);
     }
@@ -406,15 +377,6 @@ export default function CustomerPaymentsPage() {
   const onSubmit = async (data: CustomerPaymentFormData) => {
     setIsSubmitting(true);
     try {
-      // حساب النظام المحاسبي التراكمي
-      const accountingData = await calculateRunningBalance(
-        data.customerName,
-        data.supplierName,
-        data.amount,
-        data.transactionType || 'payment',
-        customerPayments
-      );
-      
       const paymentData = {
         ...data,
         bankName: (data.paymentMethod === 'نقدي') ? undefined : data.bankName,
@@ -429,31 +391,16 @@ export default function CustomerPaymentsPage() {
         isInstallment: isInstallmentPayment,
         installmentPlan: isInstallmentPayment ? installmentPlan : undefined,
         totalAmount: isInstallmentPayment ? data.totalAmount : data.amount,
-        // النظام المحاسبي التراكمي
-        cumulativeTotalPaid: accountingData.cumulativeTotalPaid,
-        cumulativeTotalSales: accountingData.cumulativeTotalSales,
-        runningBalance: accountingData.runningBalance,
-        balanceType: accountingData.balanceType,
-        previousBalance: accountingData.previousBalance,
         transactionType: data.transactionType || 'payment',
-        accountingNotes: data.accountingNotes || `${accountingData.balanceType === 'creditor' ? 'رصيد دائن' : 
-          accountingData.balanceType === 'debtor' ? 'رصيد مدين' : 'رصيد متوازن'}: ${Math.abs(accountingData.runningBalance)} جنيه`
+        accountingNotes: data.accountingNotes || '',
       };
 
       if (editingPayment) {
         await updateCustomerPayment({ ...paymentData, id: editingPayment.id } as CustomerPayment);
-        toast({ 
-          title: "تم التحديث", 
-          description: `تم تحديث مدفوعة العميل. الرصيد الحالي: ${accountingData.runningBalance} جنيه (${accountingData.balanceType === 'creditor' ? 'دائن' : 
-            accountingData.balanceType === 'debtor' ? 'مدين' : 'متوازن'})` 
-        });
+        toast({ title: "تم التحديث", description: `تم تحديث مدفوعة العميل.` });
       } else {
         await addCustomerPayment(paymentData);
-        toast({ 
-          title: "تم الإضافة", 
-          description: `تم إضافة مدفوعة العميل. الرصيد الحالي: ${accountingData.runningBalance} جنيه (${accountingData.balanceType === 'creditor' ? 'دائن' : 
-            accountingData.balanceType === 'debtor' ? 'مدين' : 'متوازن'})` 
-        });
+        toast({ title: "تم الإضافة", description: `تم إضافة مدفوعة العميل.` });
       }
       form.reset();
       setAttachments([]);
@@ -470,7 +417,7 @@ export default function CustomerPaymentsPage() {
 
   const handleConfirmPayment = async (paymentId: string) => {
     try {
-      await confirmCustomerPayment(paymentId, "النظام"); // يمكن تخصيص اسم المستخدم
+      await confirmCustomerPayment(paymentId, "النظام");
       toast({ title: "تم التأكيد", description: "تم تأكيد استلام المدفوعة بنجاح." });
     } catch (error) {
       toast({ title: "خطأ", description: "لم نتمكن من تأكيد الاستلام.", variant: "destructive" });
@@ -503,13 +450,12 @@ export default function CustomerPaymentsPage() {
     }
   };
 
-  // دالة لتنسيق التاريخ بأمان
   const formatDateSafely = (date: Date | undefined) => {
-    if (!date || isNaN(date.getTime())) {
+    if (!date || isNaN(new Date(date).getTime())) {
       return '-';
     }
     try {
-      return format(date, 'yyyy-MM-dd');
+      return format(new Date(date), 'yyyy-MM-dd');
     } catch (error) {
       return '-';
     }
@@ -561,42 +507,35 @@ export default function CustomerPaymentsPage() {
         </div>
       </header>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6 sm:mb-8">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-6 sm:mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">إجمالي مبلغ المبيعات</CardTitle>
+            <CardTitle className="text-sm font-medium">إجمالي المبيعات</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{totals.totalAmount.toLocaleString('ar-EG')} ج.م</div>
+            <div className="text-xl sm:text-2xl font-bold text-red-600">{totals.totalAmount.toLocaleString('ar-EG')} ج.م</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">تم الاستلام</CardTitle>
+            <CardTitle className="text-sm font-medium">إجمالي المدفوع</CardTitle>
             <Check className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-xl sm:text-2xl font-bold text-green-600">{totals.receivedAmount.toLocaleString('ar-EG')} ج.م</div>
           </CardContent>
         </Card>
-        <Card>
+         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">في الانتظار</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium">الرصيد</CardTitle>
+            <HelpCircle className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-yellow-600">{totals.pendingAmount.toLocaleString('ar-EG')} ج.م</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">لم يتم الاستلام</CardTitle>
-            <X className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-red-600">{totals.notReceivedAmount.toLocaleString('ar-EG')} ج.م</div>
+            <div className={`text-xl sm:text-2xl font-bold ${totals.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>{Math.abs(totals.balance).toLocaleString('ar-EG')} ج.م</div>
+             <p className="text-xs text-muted-foreground">
+              {totals.balance >= 0 ? 'رصيد دائن (لهم)' : 'رصيد مدين (عليهم)'}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -613,82 +552,14 @@ export default function CustomerPaymentsPage() {
         </CardHeader>
         <CardContent className="text-sm space-y-2 text-muted-foreground">
           <p>
-            - **الإجمالي المدفوع:** هذا العمود يعرض إجمالي المبلغ الذي دفعه العميل لهذا المورد المحدد **حتى تاريخ هذه العملية**.
+            - **الإجمالي المدفوع التراكمي:** هذا العمود يعرض إجمالي المبلغ الذي دفعه العميل لهذا المورد المحدد **حتى تاريخ هذه العملية**.
           </p>
           <p>
-            - **الرصيد الحالي:** هذا هو الرصيد المباشر للحساب بعد كل معاملة (فاتورة أو دفعة). يتم حسابه كـ (مجموع كل الدفعات - مجموع كل المبيعات).
-          </p>
-          <p>
-            - **نوع الرصيد:** يوضح حالة الرصيد الحالي. **دائن** يعني أن العميل له رصيد لدينا، **مدين** يعني أنه عليه رصيد مستحق.
+            - **نوع الرصيد:** يوضح حالة الرصيد الحالي بعد كل معاملة. **دائن** يعني أن العميل له رصيد لدينا، **مدين** يعني أنه عليه رصيد مستحق.
           </p>
         </CardContent>
       </Card>
-
-
-      {/* Customer Balances */}
-      <Card className="mb-6 sm:mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <BarChart3 className="h-5 w-5" />
-            أرصدة العملاء التراكمية
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {customerBalances.map(({ customerName, balance }) => (
-              <Card key={customerName} className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                    <span className="font-medium text-sm">{customerName}</span>
-                  </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">إجمالي المبلغ المدفوع:</span>
-                      <span className="font-medium">{balance.totalSales.toLocaleString()} ج.م</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">إجمالي مبلغ المبيعات:</span>
-                      <span className="font-medium">{balance.totalPayments.toLocaleString()} ج.م</span>
-                    </div>
-                    <div className="border-t pt-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">الرصيد:</span>
-                        <div className="flex items-center gap-2">
-                          <span className={`font-bold ${
-                            balance.balance > 0 ? 'text-red-600' : 
-                            balance.balance < 0 ? 'text-green-600' : 
-                            'text-gray-600'
-                          }`}>
-                            {Math.abs(balance.balance).toLocaleString()} ج.م
-                          </span>
-                          <Badge 
-                            variant={
-                              balance.balanceType === 'creditor' ? 'default' :
-                              balance.balanceType === 'debtor' ? 'destructive' : 'secondary'
-                            } 
-                            className="text-xs"
-                          >
-                            {balance.balanceType === 'creditor' ? 'دائن' :
-                             balance.balanceType === 'debtor' ? 'مدين' : 'متوازن'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-            {customerBalances.length === 0 && (
-              <div className="col-span-full text-center py-8 text-muted-foreground">
-                لا توجد أرصدة عملاء متاحة
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Payments Table */}
+      
       <Card>
         <CardHeader>
           <CardTitle className="text-base sm:text-lg">سجل مبيعات العملاء</CardTitle>
@@ -722,14 +593,14 @@ export default function CustomerPaymentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customerPayments.length === 0 ? (
+                {processedPayments.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={21} className="text-center py-12 text-muted-foreground">
                       لا توجد مدفوعات عملاء مسجلة
                     </TableCell>
                   </TableRow>
                 ) : (
-                  customerPayments.map((payment) => (
+                  processedPayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell>{formatDateSafely(payment.date)}</TableCell>
                       <TableCell className="text-xs">{payment.operationNumber || <span className="text-muted-foreground">-</span>}</TableCell>
@@ -748,17 +619,14 @@ export default function CustomerPaymentsPage() {
                       <TableCell className="text-xs">{payment.quantity || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="text-xs">{payment.sellingPrice ? `${payment.sellingPrice.toLocaleString()} ج.م` : <span className="text-muted-foreground">-</span>}</TableCell>
                       
-                      {/* مبلغ الفاتورة */}
                       <TableCell className="font-semibold text-red-600">
                         {payment.transactionType === 'sale' ? `${payment.amount.toLocaleString()} ج.م` : '-'}
                       </TableCell>
                       
-                      {/* المبلغ المدفوع */}
                       <TableCell className="font-semibold text-green-600">
                         {payment.transactionType === 'payment' ? `${payment.amount.toLocaleString()} ج.م` : '-'}
                       </TableCell>
 
-                      {/* الاجمالي المدفوع التراكمي */}
                       <TableCell className="font-bold text-blue-600">
                         {payment.cumulativeTotalPaid?.toLocaleString()} ج.م
                       </TableCell>
@@ -909,7 +777,6 @@ export default function CustomerPaymentsPage() {
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* رقم العملية - للتحديث التلقائي */}
               <FormField
                 control={form.control}
                 name="operationNumber"
@@ -986,7 +853,6 @@ export default function CustomerPaymentsPage() {
                 />
               </div>
 
-              {/* خيار الدفع بالتقسيط */}
               <div className="space-y-4">
                 <div className="flex items-center space-x-2 space-x-reverse">
                   <Switch
@@ -1072,7 +938,6 @@ export default function CustomerPaymentsPage() {
                 />
               </div>
 
-              {/* الحقول المسحوبة من العمليات */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -1160,7 +1025,6 @@ export default function CustomerPaymentsPage() {
                 />
               </div>
 
-              {/* حقول الناقل وتاريخ الخروج */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                   control={form.control}
@@ -1275,7 +1139,6 @@ export default function CustomerPaymentsPage() {
                 />
               </div>
 
-              {/* Bank Details (only for non-cash payments) */}
               {watchedPaymentMethod !== 'نقدي' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-md bg-muted/50">
                   <FormField
@@ -1308,7 +1171,6 @@ export default function CustomerPaymentsPage() {
                 </div>
               )}
 
-              {/* النظام المحاسبي التراكمي */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -1362,7 +1224,6 @@ export default function CustomerPaymentsPage() {
                 )}
               />
 
-              {/* Attachment Upload */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">المرفقات</label>
                 <AttachmentUpload
@@ -1386,7 +1247,6 @@ export default function CustomerPaymentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* حوار الملخص المحاسبي */}
       <Dialog open={showAccountingSummary} onOpenChange={setShowAccountingSummary}>
         <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -1395,7 +1255,6 @@ export default function CustomerPaymentsPage() {
           </DialogHeader>
           
           <div className="space-y-6">
-            {/* إحصائيات عامة */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card className="p-4">
                 <div className="text-center">
@@ -1423,7 +1282,6 @@ export default function CustomerPaymentsPage() {
               </Card>
             </div>
 
-            {/* تفاصيل الحسابات */}
             <div>
               <h3 className="text-lg font-semibold mb-4">تفاصيل حسابات العملاء</h3>
               <div className="border rounded-lg">
@@ -1476,5 +1334,3 @@ export default function CustomerPaymentsPage() {
     </div>
   );
 }
-
-    

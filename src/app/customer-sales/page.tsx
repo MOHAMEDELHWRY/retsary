@@ -46,7 +46,6 @@ export default function CustomerSalesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddingInvoice, setIsAddingInvoice] = useState(false);
   
-  // Set customer from URL query parameter
   useEffect(() => {
     const customerFromUrl = searchParams.get('customer');
     if (customerFromUrl) {
@@ -67,18 +66,8 @@ export default function CustomerSalesPage() {
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Calculate cumulative paid amount
     let cumulativePaid = 0;
     return data.map(sale => {
-      if (sale.status !== 'رصيد دائن' && sale.status !== 'دفعة مقدمة' && sale.paidAmount > 0) {
-        // This logic assumes payments are applied to invoices and we are showing invoice history
-        // A more accurate cumulative would need payment records.
-        // For now, let's assume paidAmount on invoice is a payment.
-      }
-      // This is a simplified cumulative logic based on invoice paid amounts which might not be fully accurate
-      // A proper ledger would be needed.
-      // Let's assume for now `paidAmount` on an invoice is a payment event.
-      // This logic needs to be revisited if a separate payments collection is used.
       const payments = customerSales.filter(p => p.customerName === sale.customerName && new Date(p.date) <= new Date(sale.date) && p.paidAmount > 0);
       cumulativePaid = payments.reduce((acc, curr) => acc + curr.paidAmount, 0);
 
@@ -118,7 +107,8 @@ export default function CustomerSalesPage() {
         paymentMethod: newPayment.method as any,
         receivedStatus: 'تم الاستلام',
         notes: `دفعة من العميل ${newPayment.customer}`,
-        supplierName: 'N/A' // Or select a default supplier
+        supplierName: 'المبيعات العامة',
+        transactionType: 'payment',
       });
       
       setNewPayment({ customer: newPayment.customer, amount: '', date: '', method: 'cash' });
@@ -140,8 +130,6 @@ export default function CustomerSalesPage() {
   };
 
   const handleDocumentUpload = (saleId: string, documentUrl: string) => {
-    // This part would need to update the specific sale in Firestore, which is more complex.
-    // For now, we'll just show a success message.
     toast({ title: 'نجاح', description: `تم رفع المستند للفاتورة ${saleId}` });
   };
 
@@ -208,7 +196,6 @@ export default function CustomerSalesPage() {
         amount: String(transaction.totalSellingPrice || 0),
         date: format(new Date(transaction.date), 'yyyy-MM-dd'),
       });
-      // Also update the payment form's customer name
       setNewPayment(prev => ({ ...prev, customer: fetchedCustomerName }));
       toast({
         title: "تم سحب البيانات",
@@ -350,7 +337,7 @@ export default function CustomerSalesPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">إضافة فاتورة مبيعات جديدة</CardTitle>
           <CardDescription className="text-sm">
-            أضف فاتورة مبيعات للعميل (سيتم تطبيق الدفعات تلقائياً)
+            أضف فاتورة مبيعات للعميل (سيتم خصم أي أرصدة دائنة تلقائياً)
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
@@ -651,7 +638,6 @@ export default function CustomerSalesPage() {
         </CardContent>
       </Card>
       
-      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
