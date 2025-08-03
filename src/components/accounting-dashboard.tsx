@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -135,7 +136,8 @@ export default function AccountingDashboard() {
     transactions, addTransaction, updateTransaction, deleteTransaction, 
     expenses, addExpense, updateExpense, deleteExpense, 
     loading,
-    createCustomerPaymentFromTransaction
+    createCustomerPaymentFromTransaction,
+    supplierNames
   } = useTransactions();
   const { toast } = useToast();
 
@@ -220,10 +222,6 @@ export default function AccountingDashboard() {
   };
   
   const [availableCities, setAvailableCities] = useState<string[]>([]);
-
-  const supplierNames = useMemo(() => {
-    return Array.from(new Set(transactions.map(t => t.supplierName))).sort();
-  }, [transactions]);
 
   // Transaction Form
   const form = useForm<TransactionFormValues>({
@@ -785,7 +783,6 @@ export default function AccountingDashboard() {
   };
   
   const handleDeleteTransaction = async (transactionId: string) => await deleteTransaction(transactionId);
-  const handleDeleteExpense = async (expenseId: string) => await deleteExpense(expenseId);
   
   const handleCreatePaymentFromTransaction = async (transaction: Transaction) => {
     try {
@@ -804,34 +801,6 @@ export default function AccountingDashboard() {
     }
   };
 
-  const filteredAndSortedTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      const searchMatch =
-        t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        t.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (t.operationNumber && t.operationNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (t.customerName && t.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (t.governorate && t.governorate.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (t.city && t.city.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      let dateMatch = true;
-      
-      if (startDate || endDate) {
-        const targetDate = dateType === 'operation' ? t.date : (t.executionDate || t.date);
-        
-        if (startDate && endDate) {
-          dateMatch = targetDate >= startDate && targetDate <= endDate;
-        } else if (startDate) {
-          dateMatch = targetDate >= startDate;
-        } else if (endDate) {
-          dateMatch = targetDate <= endDate;
-        }
-      }
-      
-      return searchMatch && dateMatch;
-    }).sort((a,b) => b.date.getTime() - a.date.getTime());
-  }, [transactions, searchTerm, startDate, endDate, dateType]);
-  
   const {
     totalSales,
     totalPurchases,
@@ -874,40 +843,13 @@ export default function AccountingDashboard() {
 
   const chartData = useMemo(() => {
     const monthlyData: { [key: string]: { profit: number } } = {};
-    filteredAndSortedTransactions.forEach(t => {
+    transactions.forEach(t => {
       const month = format(t.date, 'MMM yyyy', { locale: ar });
       if (!monthlyData[month]) monthlyData[month] = { profit: 0 };
       monthlyData[month].profit += t.profit;
     });
     return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).reverse();
-  }, [filteredAndSortedTransactions]);
-  
-  const handleExport = () => {
-    const headers = ["مسلسل", "التاريخ", "تاريخ التنفيذ", "تاريخ الاستحقاق", "اسم المورد", "المحافظة", "المركز", "الوصف", "الصنف", "النوع", "الكمية", "سعر الشراء", "إجمالي الشراء", "سعر البيع", "إجمالي البيع", "الضرائب", "الربح", "المدفوع للمصنع", "القائم بالدفع", "المستلم من المورد"];
-    const escapeCSV = (str: any) => {
-      if (str === null || str === undefined) return "";
-      const string = String(str);
-      if (string.search(/("|,|\n)/g) >= 0) return `"${string.replace(/"/g, '""')}"`;
-      return string;
-    };
-    const rows = filteredAndSortedTransactions.map((t, index) => [
-      filteredAndSortedTransactions.length - index,
-      format(t.date, 'yyyy-MM-dd'), t.executionDate ? format(t.executionDate, 'yyyy-MM-dd') : '', t.dueDate ? format(t.dueDate, 'yyyy-MM-dd') : '',
-      escapeCSV(t.supplierName), escapeCSV(t.governorate), escapeCSV(t.city), escapeCSV(t.description), escapeCSV(t.category), escapeCSV(t.variety),
-      t.quantity, t.purchasePrice, t.totalPurchasePrice, t.sellingPrice, t.totalSellingPrice, t.taxes, t.profit,
-      t.amountPaidToFactory, escapeCSV(t.paidBy), t.amountReceivedFromSupplier
-    ].join(','));
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "transactions.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
+  }, [transactions]);
   
   const handleAnalyzePerformance = async () => {
     if (transactions.length === 0) {
@@ -992,7 +934,7 @@ export default function AccountingDashboard() {
           <Button variant="outline" onClick={() => handleOpenExpenseDialog(null)}><MinusCircle className="ml-2 h-4 w-4" />إضافة مصروف</Button>
           <Button variant="outline" asChild><Link href="/customer-payments"><Wallet className="ml-2 h-4 w-4" />مدفوعات العملاء</Link></Button>
           <Button variant="outline" asChild><Link href="/inventory-report"><Package className="ml-2 h-4 w-4" />تقرير المخزون</Link></Button>
-          <Button variant="outline" onClick={handleExport}><Download className="ml-2 h-4 w-4" />تصدير CSV</Button>
+          <Button variant="outline" onClick={handleAnalyzePerformance}><Wand2 className="ml-2 h-4 w-4" />تحليل الأداء</Button>
         </div>
       </header>
 
@@ -1085,9 +1027,28 @@ export default function AccountingDashboard() {
                           <FormField control={form.control} name="amountPaidToFactory" render={({ field }) => (
                             <FormItem><FormLabel>المبلغ المدفوع للمصنع</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
-                          <FormField control={form.control} name="paidBy" render={({ field }) => (
-                            <FormItem><FormLabel>القائم بالدفع</FormLabel><FormControl><Input placeholder="اسم الشخص الذي قام بالدفع" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>
-                          )} />
+                          <FormField
+                            control={form.control}
+                            name="paidBy"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>القائم بالدفع</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="اختر القائم بالدفع" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {supplierNames.map((name) => (
+                                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                           <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (
                             <FormItem><FormLabel>طريقة الدفع للمصنع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                           )} />

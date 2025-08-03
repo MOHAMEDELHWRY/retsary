@@ -119,7 +119,8 @@ export default function TransactionsLogPage() {
   const { 
     transactions, addTransaction, updateTransaction, deleteTransaction, 
     loading,
-    createCustomerPaymentFromTransaction
+    createCustomerPaymentFromTransaction,
+    supplierNames
   } = useTransactions();
   const { toast } = useToast();
 
@@ -765,9 +766,28 @@ export default function TransactionsLogPage() {
                           <FormField control={form.control} name="amountPaidToFactory" render={({ field }) => (
                             <FormItem><FormLabel>المبلغ المدفوع للمصنع</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
-                          <FormField control={form.control} name="paidBy" render={({ field }) => (
-                            <FormItem><FormLabel>القائم بالدفع</FormLabel><FormControl><Input placeholder="اسم الشخص الذي قام بالدفع" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
+                          <FormField
+                            control={form.control}
+                            name="paidBy"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>القائم بالدفع</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="اختر القائم بالدفع" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {supplierNames.map((name) => (
+                                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                           <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (
                             <FormItem><FormLabel>طريقة الدفع للمصنع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                           )} />
@@ -847,8 +867,16 @@ export default function TransactionsLogPage() {
                                   <span className="text-sm">مستندات دفع المصنع</span>
                                 </div>
                               </Label>
-                              <input id="factory-payment-files" type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileUpload(e, 'factory_payment')} />
+                              <input
+                                id="factory-payment-files"
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf,.doc,.docx"
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(e, 'factory_payment')}
+                              />
                             </div>
+                            
                             <div>
                               <Label htmlFor="supplier-receipt-files" className="cursor-pointer">
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-green-500 transition-colors">
@@ -856,8 +884,16 @@ export default function TransactionsLogPage() {
                                   <span className="text-sm">إيصالات المورد</span>
                                 </div>
                               </Label>
-                              <input id="supplier-receipt-files" type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileUpload(e, 'supplier_receipt')} />
+                              <input
+                                id="supplier-receipt-files"
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf,.doc,.docx"
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(e, 'supplier_receipt')}
+                              />
                             </div>
+                            
                             <div>
                               <Label htmlFor="invoice-files" className="cursor-pointer">
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-orange-500 transition-colors">
@@ -865,8 +901,16 @@ export default function TransactionsLogPage() {
                                   <span className="text-sm">الفواتير</span>
                                 </div>
                               </Label>
-                              <input id="invoice-files" type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileUpload(e, 'invoice')} />
+                              <input
+                                id="invoice-files"
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf,.doc,.docx"
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(e, 'invoice')}
+                              />
                             </div>
+                            
                             <div>
                               <Label htmlFor="other-files" className="cursor-pointer">
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-purple-500 transition-colors">
@@ -874,9 +918,18 @@ export default function TransactionsLogPage() {
                                   <span className="text-sm">مستندات أخرى</span>
                                 </div>
                               </Label>
-                              <input id="other-files" type="file" multiple accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => handleFileUpload(e, 'other')} />
+                              <input
+                                id="other-files"
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf,.doc,.docx"
+                                className="hidden"
+                                onChange={(e) => handleFileUpload(e, 'other')}
+                              />
                             </div>
                           </div>
+                          
+                          {/* عرض المرفقات الموجودة */}
                           {editingTransaction && editingTransaction.attachments && editingTransaction.attachments.length > 0 && (
                             <div className="mt-4">
                               <Label className="text-sm font-medium">المرفقات الموجودة:</Label>
@@ -884,23 +937,101 @@ export default function TransactionsLogPage() {
                                 {editingTransaction.attachments.map((attachment, index) => (
                                   <div key={attachment.id || attachment.url} className="flex items-center justify-between p-3 border rounded-lg bg-blue-50">
                                     <div className="flex items-center space-x-3 flex-1">
-                                      {attachment.type === 'image' ? <Image className="h-5 w-5 text-blue-500" /> : <FileText className="h-5 w-5 text-red-500" />}
+                                      {attachment.type === 'image' ? (
+                                        <Image className="h-5 w-5 text-blue-500" />
+                                      ) : (
+                                        <FileText className="h-5 w-5 text-red-500" />
+                                      )}
                                       <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate">{attachment.name}</p>
-                                        <p className="text-xs text-gray-500">{attachment.category === 'factory_payment' && 'دفع المصنع'} {attachment.category === 'supplier_receipt' && 'إيصال المورد'} {attachment.category === 'invoice' && 'فاتورة'} {attachment.category === 'other' && 'أخرى'}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {attachment.category === 'factory_payment' && 'دفع المصنع'}
+                                          {attachment.category === 'supplier_receipt' && 'إيصال المورد'}
+                                          {attachment.category === 'invoice' && 'فاتورة'}
+                                          {attachment.category === 'other' && 'أخرى'}
+                                        </p>
                                       </div>
                                     </div>
                                     <div className="flex gap-1 mr-2">
-                                      <Button type="button" variant="outline" size="sm" onClick={() => { setCurrentPreviewIndex(index); handlePreviewAttachments(editingTransaction.attachments || [], editingTransaction); }} title="معاينة"><FileText className="h-4 w-4" /></Button>
-                                      <Button type="button" variant="ghost" size="sm" onClick={() => { const newName = prompt('أدخل اسم جديد للملف:', attachment.name); if (newName && newName.trim() && newName !== attachment.name) { const updatedAttachments = editingTransaction.attachments?.map((att, i) => i === index ? { ...att, name: newName.trim() } : att); setEditingTransaction({ ...editingTransaction, attachments: updatedAttachments || [] }); toast({ title: "تم تحديث الملف", description: "تم تغيير اسم الملف بنجاح" }); } }} title="تعديل الاسم"><Edit2 className="h-4 w-4" /></Button>
-                                      <Button type="button" variant="ghost" size="sm" onClick={() => { setCurrentPreviewIndex(index); setPreviewTransaction(editingTransaction); setPreviewAttachments(editingTransaction.attachments || []); const fileInput = document.getElementById('replace-file-input') as HTMLInputElement; if (fileInput) fileInput.click(); }} title="استبدال الملف"><Upload className="h-4 w-4 text-blue-500" /></Button>
-                                      <Button type="button" variant="ghost" size="sm" onClick={() => { const attachment = editingTransaction.attachments?.[index]; if (attachment) handleDeleteExistingAttachment(attachment.id || attachment.url, attachment.url); }} title="حذف"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setCurrentPreviewIndex(index);
+                                          handlePreviewAttachments(editingTransaction.attachments || [], editingTransaction);
+                                        }}
+                                        title="معاينة"
+                                      >
+                                        <FileText className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          const newName = prompt('أدخل اسم جديد للملف:', attachment.name);
+                                          if (newName && newName.trim() && newName !== attachment.name) {
+                                            const updatedAttachments = editingTransaction.attachments?.map((att, i) => 
+                                              i === index 
+                                                ? { ...att, name: newName.trim() }
+                                                : att
+                                            );
+                                            setEditingTransaction({
+                                              ...editingTransaction,
+                                              attachments: updatedAttachments || []
+                                            });
+                                            toast({
+                                              title: "تم تحديث الملف",
+                                              description: "تم تغيير اسم الملف بنجاح",
+                                            });
+                                          }
+                                        }}
+                                        title="تعديل الاسم"
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          // Set up for replacement
+                                          setCurrentPreviewIndex(index);
+                                          setPreviewTransaction(editingTransaction);
+                                          setPreviewAttachments(editingTransaction.attachments || []);
+                                          // Trigger file input
+                                          const fileInput = document.getElementById('replace-file-input') as HTMLInputElement;
+                                          if (fileInput) {
+                                            fileInput.click();
+                                          }
+                                        }}
+                                        title="استبدال الملف"
+                                      >
+                                        <Upload className="h-4 w-4 text-blue-500" />
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          const attachment = editingTransaction.attachments?.[index];
+                                          if (attachment) {
+                                            handleDeleteExistingAttachment(attachment.id || attachment.url, attachment.url);
+                                          }
+                                        }}
+                                        title="حذف"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                      </Button>
                                     </div>
                                   </div>
                                 ))}
                               </div>
                             </div>
                           )}
+                          
+                          {/* عرض المرفقات المحملة */}
                           {attachments.length > 0 && (
                             <div className="mt-4">
                               <Label className="text-sm font-medium">المرفقات المحملة:</Label>
@@ -908,13 +1039,29 @@ export default function TransactionsLogPage() {
                                 {attachments.map((attachment) => (
                                   <div key={attachment.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                                     <div className="flex items-center space-x-3">
-                                      {attachment.type === 'image' ? <Image className="h-5 w-5 text-blue-500" /> : <FileText className="h-5 w-5 text-red-500" />}
+                                      {attachment.type === 'image' ? (
+                                        <Image className="h-5 w-5 text-blue-500" />
+                                      ) : (
+                                        <FileText className="h-5 w-5 text-red-500" />
+                                      )}
                                       <div>
                                         <p className="text-sm font-medium truncate max-w-[200px]">{attachment.name}</p>
-                                        <p className="text-xs text-gray-500">{attachment.category === 'factory_payment' && 'دفع المصنع'} {attachment.category === 'supplier_receipt' && 'إيصال المورد'} {attachment.category === 'invoice' && 'فاتورة'} {attachment.category === 'other' && 'أخرى'}</p>
+                                        <p className="text-xs text-gray-500">
+                                          {attachment.category === 'factory_payment' && 'دفع المصنع'}
+                                          {attachment.category === 'supplier_receipt' && 'إيصال المورد'}
+                                          {attachment.category === 'invoice' && 'فاتورة'}
+                                          {attachment.category === 'other' && 'أخرى'}
+                                        </p>
                                       </div>
                                     </div>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(attachment.id)}><X className="h-4 w-4" /></Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removeAttachment(attachment.id)}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
                                   </div>
                                 ))}
                               </div>
@@ -927,7 +1074,14 @@ export default function TransactionsLogPage() {
                   <DialogFooter className="pt-4">
                     {editingTransaction && (<AlertDialog><AlertDialogTrigger asChild><Button type="button" variant="destructive" className="mr-auto"><Trash2 className="ml-2 h-4 w-4" />حذف</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle><AlertDialogDescription>هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف العملية بشكل دائم.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={async () => { if (editingTransaction) { await handleDeleteTransaction(editingTransaction.id); setIsDialogOpen(false); setEditingTransaction(null); } }}>متابعة</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>)}
                     <DialogClose asChild><Button type="button" variant="secondary">إلغاء</Button></DialogClose>
-                    <Button type="submit" disabled={isSubmitting || isUploadingAttachments}>{isSubmitting ? 'جاري الحفظ...' : isUploadingAttachments ? 'جاري رفع المرفقات...' : (editingTransaction ? 'حفظ التعديلات' : 'حفظ العملية')}</Button>
+                    <Button type="submit" disabled={isSubmitting || isUploadingAttachments}>
+                      {isSubmitting 
+                        ? 'جاري الحفظ...' 
+                        : isUploadingAttachments 
+                        ? 'جاري رفع المرفقات...' 
+                        : (editingTransaction ? 'حفظ التعديلات' : 'حفظ العملية')
+                      }
+                    </Button>
                   </DialogFooter>
                 </form>
               </Form>
@@ -936,4 +1090,3 @@ export default function TransactionsLogPage() {
     </div>
   );
 }
-
