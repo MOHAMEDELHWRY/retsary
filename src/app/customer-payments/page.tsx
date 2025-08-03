@@ -28,10 +28,11 @@ import {
   Eye,
   BarChart3,
   Calculator,
+  HelpCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -526,7 +527,7 @@ export default function CustomerPaymentsPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-4 md:p-8">
+      <div className="w-full px-2 py-2 sm:px-4 sm:py-4 md:px-6 md:py-6">
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
           <div className="grid gap-4 md:grid-cols-4 mb-8">
@@ -596,6 +597,30 @@ export default function CustomerPaymentsPage() {
           </CardContent>
         </Card>
       </div>
+      
+      <Card className="mb-6 sm:mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <HelpCircle className="h-5 w-5 text-blue-600" />
+            شرح آلية عمل الجدول
+          </CardTitle>
+          <CardDescription>
+            هذا الجدول يعمل كسجل محاسبي تراكمي (Ledger) لكل عميل مع كل مورد.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm space-y-2 text-muted-foreground">
+          <p>
+            - **الإجمالي المدفوع:** هذا العمود يعرض إجمالي المبلغ الذي دفعه العميل لهذا المورد المحدد **حتى تاريخ هذه العملية**.
+          </p>
+          <p>
+            - **الرصيد الحالي:** هذا هو الرصيد المباشر للحساب بعد كل معاملة (فاتورة أو دفعة). يتم حسابه كـ (مجموع كل الدفعات - مجموع كل المبيعات).
+          </p>
+          <p>
+            - **نوع الرصيد:** يوضح حالة الرصيد الحالي. **دائن** يعني أن العميل له رصيد لدينا، **مدين** يعني أنه عليه رصيد مستحق.
+          </p>
+        </CardContent>
+      </Card>
+
 
       {/* Customer Balances */}
       <Card className="mb-6 sm:mb-8">
