@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
@@ -339,7 +340,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           
           return { ...data, id: doc.id, date, paymentDate } as CustomerSale;
         });
-        setCustomerSales(fetchedCustomerSales.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        setCustomerSales(fetchedCustomerSales.sort((a, b) => b.date.getTime() - new Date(a.date).getTime()));
 
 
       } catch (error) {
@@ -678,88 +679,62 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
     const { customerName, amount, date } = payment;
-    let remainingAmount = amount;
 
-    // 1. Get all unpaid/partially-paid sales for this customer, sorted by date
+    const batch = writeBatch(db);
+
+    // Apply credit/debit to customer sales for accounting
     const unpaidSales = customerSales
         .filter(s => s.customerName === customerName && (s.status === 'معلق' || s.status === 'مدفوع جزئياً'))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    const batch = writeBatch(db);
-    const updatedSalesLocally: CustomerSale[] = [];
 
-    // 2. Apply payment to each invoice sequentially
+    let remainingAmount = amount;
     for (const sale of unpaidSales) {
         if (remainingAmount <= 0) break;
-
         const dueAmount = sale.amount - sale.paidAmount;
         const amountToPay = Math.min(remainingAmount, dueAmount);
 
-        sale.paidAmount += amountToPay;
-        remainingAmount -= amountToPay;
-
-        if (sale.paidAmount >= sale.amount) {
-            sale.status = 'مدفوع';
-        } else {
-            sale.status = 'مدفوع جزئياً';
-        }
-        sale.paymentDate = date; // Update last payment date
-
         const saleDocRef = doc(db, 'users', currentUser.uid, 'customerSales', sale.id);
-        batch.update(saleDocRef, {
-            paidAmount: sale.paidAmount,
-            status: sale.status,
-            paymentDate: Timestamp.fromDate(date)
+        batch.update(saleDocRef, { 
+          paidAmount: sale.paidAmount + amountToPay,
+          status: (sale.paidAmount + amountToPay) >= sale.amount ? 'مدفوع' : 'مدفوع جزئياً',
+          paymentDate: Timestamp.fromDate(date)
         });
-        updatedSalesLocally.push(sale);
+        remainingAmount -= amountToPay;
     }
-    
-    // 3. Handle any remaining amount as a credit
+
     if (remainingAmount > 0) {
         const creditSale: Omit<CustomerSale, 'id'> = {
-            customerName: customerName,
-            date: date,
+            customerName,
+            date,
             amount: remainingAmount,
             paidAmount: remainingAmount,
             status: 'رصيد دائن',
             invoiceNumber: `CREDIT-${Date.now()}`,
-            supplierName: 'N/A',
+            supplierName: payment.supplierName,
             description: `رصيد دائن من دفعة بتاريخ ${format(date, 'yyyy-MM-dd')}`,
         };
         const creditDocRef = doc(collection(db, 'users', currentUser.uid, 'customerSales'));
-        batch.set(creditDocRef, {
-            ...creditSale,
-            date: Timestamp.fromDate(date)
-        });
-        updatedSalesLocally.push({ ...creditSale, id: creditDocRef.id });
+        batch.set(creditDocRef, { ...creditSale, date: Timestamp.fromDate(date) });
     }
     
-    // 4. Save payment record
+    // Add the payment record
     const paymentDocRef = doc(collection(db, 'users', currentUser.uid, 'customerPayments'));
-    batch.set(paymentDocRef, {
-        ...payment,
-        date: Timestamp.fromDate(date)
-    });
+    const docData = cleanDataForFirebase({ ...payment, date: Timestamp.fromDate(date) });
+    batch.set(paymentDocRef, docData);
 
-    // 5. Commit all changes to Firestore
     await batch.commit();
 
-    // 6. Update local state
-    setCustomerSales(prevSales => {
-        const newSales = [...prevSales];
-        updatedSalesLocally.forEach(updatedSale => {
-            const index = newSales.findIndex(s => s.id === updatedSale.id);
-            if (index !== -1) {
-                newSales[index] = updatedSale;
-            } else {
-                newSales.push(updatedSale);
-            }
-        });
-        return newSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    });
+    // Optimistically update local state after successful commit
+    const newPayment = { ...payment, id: paymentDocRef.id };
+    setCustomerPayments(prev => [newPayment, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
     
-    setCustomerPayments(prev => [{...payment, id: paymentDocRef.id}, ...prev]
-      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    // Refetch customer sales to get updated state
+    const salesSnapshot = await getDocs(collection(db, 'users', currentUser.uid, 'customerSales'));
+    const fetchedSales = salesSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return { ...data, id: doc.id, date: (data.date as Timestamp).toDate() } as CustomerSale
+    });
+    setCustomerSales(fetchedSales.sort((a, b) => b.date.getTime() - new Date(a.date).getTime()));
   };
 
   const updateCustomerPayment = async (updatedPayment: CustomerPayment) => {

@@ -707,6 +707,9 @@ export default function CustomerPaymentsPage() {
                   <TableHead className="min-w-[80px]">نوع الرصيد</TableHead>
                   <TableHead className="min-w-[80px]">الكمية</TableHead>
                   <TableHead className="min-w-[100px]">سعر البيع</TableHead>
+                  <TableHead className="min-w-[100px]">مبلغ الفاتورة</TableHead>
+                  <TableHead className="min-w-[100px]">المبلغ المدفوع</TableHead>
+                  <TableHead className="min-w-[120px]">الاجمالى المدفوع التراكمى</TableHead>
                   <TableHead className="min-w-[120px]">نوع الدفع</TableHead>
                   <TableHead className="min-w-[100px]">طريقة الدفع</TableHead>
                   <TableHead className="min-w-[120px]">الناقل</TableHead>
@@ -721,7 +724,7 @@ export default function CustomerPaymentsPage() {
               <TableBody>
                 {customerPayments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={17} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={21} className="text-center py-12 text-muted-foreground">
                       لا توجد مدفوعات عملاء مسجلة
                     </TableCell>
                   </TableRow>
@@ -744,6 +747,22 @@ export default function CustomerPaymentsPage() {
                       
                       <TableCell className="text-xs">{payment.quantity || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="text-xs">{payment.sellingPrice ? `${payment.sellingPrice.toLocaleString()} ج.م` : <span className="text-muted-foreground">-</span>}</TableCell>
+                      
+                      {/* مبلغ الفاتورة */}
+                      <TableCell className="font-semibold text-red-600">
+                        {payment.transactionType === 'sale' ? `${payment.amount.toLocaleString()} ج.م` : '-'}
+                      </TableCell>
+                      
+                      {/* المبلغ المدفوع */}
+                      <TableCell className="font-semibold text-green-600">
+                        {payment.transactionType === 'payment' ? `${payment.amount.toLocaleString()} ج.م` : '-'}
+                      </TableCell>
+
+                      {/* الاجمالي المدفوع التراكمي */}
+                      <TableCell className="font-bold text-blue-600">
+                        {payment.cumulativeTotalPaid?.toLocaleString()} ج.م
+                      </TableCell>
+
                       <TableCell>
                         {payment.isInstallment ? (
                           <div className="flex items-center gap-2">
