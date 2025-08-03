@@ -701,7 +701,7 @@ export default function CustomerPaymentsPage() {
                   <TableHead className="min-w-[100px]">المورد</TableHead>
                   <TableHead className="min-w-[100px]">المحافظة</TableHead>
                   <TableHead className="min-w-[100px]">المركز</TableHead>
-                  <TableHead className="min-w-[100px]">المبلغ</TableHead>
+                  <TableHead className="min-w-[100px]">المبلغ يعبر عن المبيعات</TableHead>
                   <TableHead className="min-w-[120px]">الإجمالي المدفوع</TableHead>
                   <TableHead className="min-w-[100px]">الرصيد الحالي</TableHead>
                   <TableHead className="min-w-[80px]">نوع الرصيد</TableHead>
