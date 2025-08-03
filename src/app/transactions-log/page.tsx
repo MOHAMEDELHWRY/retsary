@@ -29,6 +29,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Truck,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -103,14 +104,16 @@ const transactionSchema = z.object({
   paidBy: z.string().optional(), //  من قام بالدفع للمصنع
   amountReceivedFromSupplier: z.coerce.number().min(0, 'المبلغ المستلم يجب أن يكون موجبًا.').default(0),
   
-  // طرق الدفع الجديدة
   paymentMethodToFactory: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
   paymentMethodFromSupplier: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
   
-  // حقول إدارة المخزون للصنف السائب
   actualQuantityDeducted: z.coerce.number().min(0, 'الكمية الفعلية يجب أن تكون موجبة.').optional(),
   transactionDate: z.date().optional(),
   transactionNumber: z.string().optional(),
+
+  carrierName: z.string().optional(),
+  carrierPhone: z.string().optional(),
+  departureDate: z.date().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -155,6 +158,7 @@ export default function TransactionsLogPage() {
   const [isExecDatePopoverOpen, setIsExecDatePopoverOpen] = useState(false);
   const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
   const [isTransactionDatePopoverOpen, setIsTransactionDatePopoverOpen] = useState(false);
+  const [isDepartureDatePopoverOpen, setIsDepartureDatePopoverOpen] = useState(false);
   const [isStartDatePopoverOpen, setIsStartDatePopoverOpen] = useState(false);
   const [isEndDatePopoverOpen, setIsEndDatePopoverOpen] = useState(false);
 
@@ -219,7 +223,10 @@ export default function TransactionsLogPage() {
       paymentMethodFromSupplier: undefined,
       actualQuantityDeducted: 0,
       transactionDate: undefined,
-      transactionNumber: ""
+      transactionNumber: "",
+      carrierName: "",
+      carrierPhone: "",
+      departureDate: undefined,
     },
   });
   const { watch, setValue } = form;
@@ -248,6 +255,7 @@ export default function TransactionsLogPage() {
         executionDate: transaction.executionDate ? new Date(transaction.executionDate) : undefined,
         dueDate: transaction.dueDate ? new Date(transaction.dueDate) : undefined,
         transactionDate: transaction.transactionDate ? new Date(transaction.transactionDate) : undefined,
+        departureDate: transaction.departureDate ? new Date(transaction.departureDate) : undefined,
         showExecutionDate: transaction.showExecutionDate ?? false,
         governorate: transaction.governorate || '',
         city: transaction.city || '',
@@ -257,7 +265,9 @@ export default function TransactionsLogPage() {
         paymentMethodToFactory: transaction.paymentMethodToFactory || undefined,
         paymentMethodFromSupplier: transaction.paymentMethodFromSupplier || undefined,
         actualQuantityDeducted: transaction.actualQuantityDeducted || 0,
-        transactionNumber: transaction.transactionNumber || ''
+        transactionNumber: transaction.transactionNumber || '',
+        carrierName: transaction.carrierName || "",
+        carrierPhone: transaction.carrierPhone || "",
       });
        if (transaction.governorate) setAvailableCities(cities[transaction.governorate] || []);
     } else {
@@ -285,7 +295,10 @@ export default function TransactionsLogPage() {
         paymentMethodToFactory: undefined,
         paymentMethodFromSupplier: undefined,
         actualQuantityDeducted: 0,
-        transactionNumber: ""
+        transactionNumber: "",
+        carrierName: "",
+        carrierPhone: "",
+        departureDate: undefined,
       });
     }
     setIsDialogOpen(true);
@@ -622,7 +635,7 @@ export default function TransactionsLogPage() {
           <CardContent>
               <div className="relative w-full overflow-auto">
                   <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                      <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>الناقل</TableHead><TableHead>هاتف الناقل</TableHead><TableHead>تاريخ الخروج</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {filteredAndSortedTransactions.map((t, index) => (
                           <TableRow key={t.id}>
@@ -656,6 +669,9 @@ export default function TransactionsLogPage() {
                               {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
                               {!t.paymentMethodFromSupplier && '-'}
                             </TableCell>
+                            <TableCell>{t.carrierName || '-'}</TableCell>
+                            <TableCell>{t.carrierPhone || '-'}</TableCell>
+                            <TableCell>{t.departureDate ? format(t.departureDate, 'dd-MM-yy') : '-'}</TableCell>
                             <TableCell>
                               {t.attachments && t.attachments.length > 0 ? (
                                 <button
@@ -826,6 +842,22 @@ export default function TransactionsLogPage() {
                           )} />
                           <FormField control={form.control} name="dueDate" render={({ field }) => (
                             <FormItem className="flex flex-col"><FormLabel>تاريخ الاستحقاق (اختياري)</FormLabel><Popover modal={false} open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsDueDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                          )} />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    <AccordionItem value="item-6">
+                      <AccordionTrigger>بيانات الناقل (اختياري)</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                          <FormField control={form.control} name="carrierName" render={({ field }) => (
+                            <FormItem><FormLabel>اسم الناقل</FormLabel><FormControl><Input placeholder="اسم السائق أو شركة النقل" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="carrierPhone" render={({ field }) => (
+                            <FormItem><FormLabel>رقم هاتف الناقل</FormLabel><FormControl><Input type="tel" placeholder="01xxxxxxxxx" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="departureDate" render={({ field }) => (
+                            <FormItem className="flex flex-col"><FormLabel>تاريخ الخروج</FormLabel><Popover modal={false} open={isDepartureDatePopoverOpen} onOpenChange={setIsDepartureDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ الخروج</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsDepartureDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                           )} />
                         </div>
                       </AccordionContent>

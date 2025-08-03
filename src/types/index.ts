@@ -45,6 +45,10 @@ export type Transaction = {
   remainingAmount?: number; // المبلغ المتبقي
   transactionDate?: Date; // تاريخ العملية (منفصل عن تاريخ الإدخال)
   transactionNumber?: string; // رقم العملية (مختلف عن رقم العملية الأساسي)
+
+  carrierName?: string; // اسم الناقل
+  carrierPhone?: string; // رقم تليفون الناقل
+  departureDate?: Date; // تاريخ الخروج
 };
 
 export type Expense = {
