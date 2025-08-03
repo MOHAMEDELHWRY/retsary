@@ -49,6 +49,10 @@ export type Transaction = {
   carrierName?: string; // اسم الناقل
   carrierPhone?: string; // رقم تليفون الناقل
   departureDate?: Date; // تاريخ الخروج
+
+  amountReceivedFromCustomer?: number; // المبلغ المستلم من العميل
+  dateReceivedFromCustomer?: Date; // تاريخ استلام المبلغ من العميل
+  paymentMethodFromCustomer?: 'نقدي' | 'تحويل بنكي' | 'إيداع' | 'شيك'; // طريقة استلام المبلغ من العميل
 };
 
 export type Expense = {

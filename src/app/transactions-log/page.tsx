@@ -114,6 +114,10 @@ const transactionSchema = z.object({
   carrierName: z.string().optional(),
   carrierPhone: z.string().optional(),
   departureDate: z.date().optional(),
+
+  amountReceivedFromCustomer: z.coerce.number().min(0).optional(),
+  dateReceivedFromCustomer: z.date().optional(),
+  paymentMethodFromCustomer: z.enum(['نقدي', 'تحويل بنكي', 'إيداع', 'شيك']).optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -159,6 +163,7 @@ export default function TransactionsLogPage() {
   const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
   const [isTransactionDatePopoverOpen, setIsTransactionDatePopoverOpen] = useState(false);
   const [isDepartureDatePopoverOpen, setIsDepartureDatePopoverOpen] = useState(false);
+  const [isDateReceivedPopoverOpen, setIsDateReceivedPopoverOpen] = useState(false);
   const [isStartDatePopoverOpen, setIsStartDatePopoverOpen] = useState(false);
   const [isEndDatePopoverOpen, setIsEndDatePopoverOpen] = useState(false);
 
@@ -227,6 +232,9 @@ export default function TransactionsLogPage() {
       carrierName: "",
       carrierPhone: "",
       departureDate: undefined,
+      amountReceivedFromCustomer: 0,
+      dateReceivedFromCustomer: undefined,
+      paymentMethodFromCustomer: undefined,
     },
   });
   const { watch, setValue } = form;
@@ -268,6 +276,9 @@ export default function TransactionsLogPage() {
         transactionNumber: transaction.transactionNumber || '',
         carrierName: transaction.carrierName || "",
         carrierPhone: transaction.carrierPhone || "",
+        amountReceivedFromCustomer: transaction.amountReceivedFromCustomer || 0,
+        dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
+        paymentMethodFromCustomer: transaction.paymentMethodFromCustomer || undefined,
       });
        if (transaction.governorate) setAvailableCities(cities[transaction.governorate] || []);
     } else {
@@ -299,6 +310,9 @@ export default function TransactionsLogPage() {
         carrierName: "",
         carrierPhone: "",
         departureDate: undefined,
+        amountReceivedFromCustomer: 0,
+        dateReceivedFromCustomer: undefined,
+        paymentMethodFromCustomer: undefined,
       });
     }
     setIsDialogOpen(true);
@@ -635,7 +649,7 @@ export default function TransactionsLogPage() {
           <CardContent>
               <div className="relative w-full overflow-auto">
                   <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                      <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>الناقل</TableHead><TableHead>هاتف الناقل</TableHead><TableHead>تاريخ الخروج</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>المستلم من العميل</TableHead><TableHead>طريقة استلام العميل</TableHead><TableHead>الناقل</TableHead><TableHead>هاتف الناقل</TableHead><TableHead>تاريخ الخروج</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {filteredAndSortedTransactions.map((t, index) => (
                           <TableRow key={t.id}>
@@ -668,6 +682,14 @@ export default function TransactionsLogPage() {
                               {t.paymentMethodFromSupplier === 'تحويل بنكي' && '🏦 تحويل بنكي'}
                               {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
                               {!t.paymentMethodFromSupplier && '-'}
+                            </TableCell>
+                            <TableCell>{(t.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                            <TableCell>
+                              {t.paymentMethodFromCustomer === 'نقدي' && '💵 نقدي'}
+                              {t.paymentMethodFromCustomer === 'تحويل بنكي' && '🏦 تحويل بنكي'}
+                              {t.paymentMethodFromCustomer === 'إيداع' && '💳 إيداع'}
+                              {t.paymentMethodFromCustomer === 'شيك' && '📄 شيك'}
+                              {!t.paymentMethodFromCustomer && '-'}
                             </TableCell>
                             <TableCell>{t.carrierName || '-'}</TableCell>
                             <TableCell>{t.carrierPhone || '-'}</TableCell>
@@ -824,6 +846,18 @@ export default function TransactionsLogPage() {
                           <FormField control={form.control} name="paymentMethodFromSupplier" render={({ field }) => (
                             <FormItem><FormLabel>طريقة الاستلام من المورد</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الاستلام" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
                           )} />
+                          
+                          <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (
+                            <FormItem><FormLabel>المبلغ المستلم من العميل</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="paymentMethodFromCustomer" render={({ field }) => (
+                            <FormItem><FormLabel>طريقة الاستلام من العميل</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الاستلام" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem><SelectItem value="شيك">شيك</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="dateReceivedFromCustomer" render={({ field }) => (
+                            <FormItem className="flex flex-col"><FormLabel>تاريخ الاستلام من العميل</FormLabel><Popover modal={false} open={isDateReceivedPopoverOpen} onOpenChange={setIsDateReceivedPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsDateReceivedPopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                          )} />
+
+
                           <FormField control={form.control} name="executionDate" render={({ field }) => (
                             <FormItem className="flex flex-col"><FormLabel>تاريخ التنفيذ (اختياري)</FormLabel><Popover modal={false} open={isExecDatePopoverOpen} onOpenChange={setIsExecDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsExecDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                           )} />
