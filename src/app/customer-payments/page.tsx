@@ -704,7 +704,6 @@ export default function CustomerPaymentsPage() {
                   <TableHead className="min-w-[100px]">المورد</TableHead>
                   <TableHead className="min-w-[100px]">المحافظة</TableHead>
                   <TableHead className="min-w-[100px]">المركز</TableHead>
-                  <TableHead className="min-w-[100px]">إجمالي المبيعات</TableHead>
                   <TableHead className="min-w-[120px]">الإجمالي المدفوع</TableHead>
                   <TableHead className="min-w-[100px]">الرصيد الحالي</TableHead>
                   <TableHead className="min-w-[80px]">نوع الرصيد</TableHead>
@@ -737,7 +736,6 @@ export default function CustomerPaymentsPage() {
                       <TableCell>{payment.supplierName}</TableCell>
                       <TableCell className="text-xs">{payment.governorate || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="text-xs">{payment.city || <span className="text-muted-foreground">-</span>}</TableCell>
-                      <TableCell className="font-bold">{payment.cumulativeTotalSales?.toLocaleString('ar-EG')} ج.م</TableCell>
                       
                       {/* الأعمدة المحاسبية الجديدة */}
                       <TableCell className="font-semibold text-blue-700">
@@ -1472,5 +1470,7 @@ export default function CustomerPaymentsPage() {
     </div>
   );
 }
+
+    
 
     
