@@ -241,6 +241,8 @@ export default function TransactionsLogPage() {
     if (transaction) {
       form.reset({
         ...transaction,
+        operationNumber: transaction.operationNumber || '',
+        customerName: transaction.customerName || '',
         paidBy: transaction.paidBy || '',
         date: new Date(transaction.date),
         executionDate: transaction.executionDate ? new Date(transaction.executionDate) : undefined,
