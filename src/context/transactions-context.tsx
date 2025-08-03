@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
-import { type Transaction, type Expense, type BalanceTransfer, type SupplierPayment, type CustomerPayment, type CustomerSale, type CustomerBalance, type InventoryBalance, type Supplier } from '@/types';
+import { type Transaction, type Expense, type BalanceTransfer, type SupplierPayment, type CustomerPayment, type CustomerSale, type CustomerBalance, type InventoryBalance, type Supplier, type Customer } from '@/types';
 import { db, storage } from '@/lib/firebase';
 import { 
   collection, 
@@ -56,7 +56,6 @@ interface TransactionsContextType {
   addTransaction: (transaction: Omit<Transaction, 'id'>) => Promise<Transaction>;
   updateTransaction: (updatedTransaction: Transaction) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
-  deleteSupplier: (supplierName: string) => Promise<void>;
   
   expenses: Expense[];
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
@@ -67,6 +66,11 @@ interface TransactionsContextType {
   addSupplier: (supplier: Omit<Supplier, 'id'>) => Promise<void>;
   updateSupplier: (updatedSupplier: Supplier) => Promise<void>;
   deleteSupplier: (supplierId: string) => Promise<void>;
+
+  customers: Customer[];
+  addCustomer: (customer: Omit<Customer, 'id'>) => Promise<void>;
+  updateCustomer: (updatedCustomer: Customer) => Promise<void>;
+  deleteCustomer: (customerId: string) => Promise<void>;
 
   balanceTransfers: BalanceTransfer[];
   addBalanceTransfer: (transfer: Omit<BalanceTransfer, 'id'>) => Promise<void>;
@@ -109,6 +113,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [balanceTransfers, setBalanceTransfers] = useState<BalanceTransfer[]>([]);
   const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
   const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
@@ -131,10 +136,11 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const customerNames = useMemo(() => {
     const allNames = new Set<string>();
     transactions.forEach(t => { if(t.customerName) allNames.add(t.customerName) });
+    customers.forEach(c => allNames.add(c.name));
     customerPayments.forEach(p => allNames.add(p.customerName));
     customerSales.forEach(s => allNames.add(s.customerName));
     return Array.from(allNames).sort((a, b) => a.localeCompare(b));
-  }, [transactions, customerPayments, customerSales]);
+  }, [transactions, customers, customerPayments, customerSales]);
 
   const getCustomerBalance = (customerName: string): CustomerBalance => {
     const customerSalesFiltered = customerSales.filter(s => s.customerName === customerName);
@@ -189,6 +195,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         setTransactions([]);
         setExpenses([]);
         setSuppliers([]);
+        setCustomers([]);
         setBalanceTransfers([]);
         setSupplierPayments([]);
         setCustomerPayments([]);
@@ -202,6 +209,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           transactions: collection(db, 'users', currentUser.uid, 'transactions'),
           expenses: collection(db, 'users', currentUser.uid, 'expenses'),
           suppliers: collection(db, 'users', currentUser.uid, 'suppliers'),
+          customers: collection(db, 'users', currentUser.uid, 'customers'),
           balanceTransfers: collection(db, 'users', currentUser.uid, 'balanceTransfers'),
           supplierPayments: collection(db, 'users', currentUser.uid, 'supplierPayments'),
           customerPayments: collection(db, 'users', currentUser.uid, 'customerPayments'),
@@ -212,6 +220,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           transactionSnapshot, 
           expenseSnapshot, 
           supplierSnapshot,
+          customerSnapshot,
           transferSnapshot, 
           paymentSnapshot, 
           customerPaymentSnapshot, 
@@ -220,6 +229,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           getDocs(collections.transactions),
           getDocs(collections.expenses),
           getDocs(collections.suppliers),
+          getDocs(collections.customers),
           getDocs(collections.balanceTransfers),
           getDocs(collections.supplierPayments),
           getDocs(collections.customerPayments),
@@ -259,6 +269,12 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         } as Supplier));
         setSuppliers(fetchedSuppliers.sort((a, b) => a.name.localeCompare(b.name)));
         
+        const fetchedCustomers = customerSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        } as Customer));
+        setCustomers(fetchedCustomers.sort((a, b) => a.name.localeCompare(b.name)));
+
         const fetchedTransfers = transferSnapshot.docs.map(doc => {
           const data = doc.data();
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
@@ -456,6 +472,28 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       const supplierDoc = doc(db, 'users', currentUser.uid, 'suppliers', supplierId);
       await deleteDoc(supplierDoc);
       setSuppliers(prev => prev.filter(s => s.id !== supplierId));
+  };
+  
+  const addCustomer = async (customer: Omit<Customer, 'id'>) => {
+      if (!currentUser) throw new Error("User not authenticated");
+      const customersCollectionRef = collection(db, 'users', currentUser.uid, 'customers');
+      const docRef = await addDoc(customersCollectionRef, customer);
+      setCustomers(prev => [...prev, { id: docRef.id, ...customer }].sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const updateCustomer = async (updatedCustomer: Customer) => {
+      if (!currentUser) throw new Error("User not authenticated");
+      const { id, ...dataToUpdate } = updatedCustomer;
+      const customerDoc = doc(db, 'users', currentUser.uid, 'customers', id);
+      await updateDoc(customerDoc, dataToUpdate);
+      setCustomers(prev => prev.map(s => (s.id === id ? updatedCustomer : s)).sort((a, b) => a.name.localeCompare(b.name)));
+  };
+
+  const deleteCustomer = async (customerId: string) => {
+      if (!currentUser) throw new Error("User not authenticated");
+      const customerDoc = doc(db, 'users', currentUser.uid, 'customers', customerId);
+      await deleteDoc(customerDoc);
+      setCustomers(prev => prev.filter(s => s.id !== customerId));
   };
 
   const addBalanceTransfer = async (transfer: Omit<BalanceTransfer, 'id'>) => {
@@ -783,6 +821,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       transactions, addTransaction, updateTransaction, deleteTransaction, 
       expenses, addExpense, updateExpense, deleteExpense,
       suppliers, addSupplier, updateSupplier, deleteSupplier,
+      customers, addCustomer, updateCustomer, deleteCustomer,
       balanceTransfers, addBalanceTransfer, updateBalanceTransfer, deleteBalanceTransfer,
       supplierPayments, addSupplierPayment, updateSupplierPayment, deleteSupplierPayment,
       customerPayments, addCustomerPayment, updateCustomerPayment, deleteCustomerPayment, confirmCustomerPayment,

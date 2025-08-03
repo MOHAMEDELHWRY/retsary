@@ -63,6 +63,15 @@ export type Supplier = {
   notes?: string;
 };
 
+export type Customer = {
+  id: string;
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+};
+
 export type CustomerSale = {
   id: string;
   date: Date;
