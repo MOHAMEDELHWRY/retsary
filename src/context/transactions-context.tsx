@@ -332,7 +332,12 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           if (data.date instanceof Timestamp) date = data.date.toDate();
           else date = data.date ? new Date(data.date) : new Date();
 
-          return { ...data, id: doc.id, date } as CustomerSale;
+          let paymentDate: Date | undefined = undefined;
+          if (data.paymentDate) {
+            paymentDate = data.paymentDate instanceof Timestamp ? data.paymentDate.toDate() : new Date(data.paymentDate);
+          }
+          
+          return { ...data, id: doc.id, date, paymentDate } as CustomerSale;
         });
         setCustomerSales(fetchedCustomerSales.sort((a, b) => b.date.getTime() - a.date.getTime()));
 

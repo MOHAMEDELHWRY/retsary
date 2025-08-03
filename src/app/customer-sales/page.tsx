@@ -22,7 +22,7 @@ export default function CustomerSalesPage() {
   const searchParams = useSearchParams();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [customer, setCustomer] = useState('');
+  const [customer, setCustomer] = useState('all_customers');
 
   const { addTransaction, getTransactionByOperationNumber, customerNames, customerSales, addCustomerSale, deleteCustomerSale, addCustomerPayment, loading } = useTransactions();
   const { toast } = useToast();
@@ -59,7 +59,7 @@ export default function CustomerSalesPage() {
       .filter(sale => {
         const customerMatch = !customer || customer === 'all_customers' ? true : sale.customerName === customer;
         const dateFromMatch = dateFrom ? new Date(sale.date) >= new Date(dateFrom) : true;
-        const dateToMatch = dateTo ? new Date(sale.date) <= dateTo : true;
+        const dateToMatch = dateTo ? new Date(sale.date) <= new Date(dateTo) : true;
         return customerMatch && dateFromMatch && dateToMatch;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -535,7 +535,7 @@ export default function CustomerSalesPage() {
                         {sale.paidAmount.toLocaleString('ar-EG')} ج.م
                       </TableCell>
                       <TableCell className="text-sm">
-                        {sale.paymentDate ? format(new Date(sale.paymentDate), 'yyyy-MM-dd') : '-'}
+                        {sale.paymentDate && sale.paymentDate instanceof Date ? format(sale.paymentDate, 'yyyy-MM-dd') : '-'}
                       </TableCell>
                       <TableCell className="text-sm">
                         {getPaymentMethodText(sale.paymentMethod || '') || '-'}
@@ -632,5 +632,3 @@ export default function CustomerSalesPage() {
     </div>
   );
 }
-
-    
