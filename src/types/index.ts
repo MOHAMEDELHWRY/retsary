@@ -89,6 +89,7 @@ export type CustomerSale = {
   paymentMethod?: string;
   documentUrl?: string;
   notes?: string;
+  cumulativePaidAmount?: number;
 };
 
 export type CustomerBalance = {

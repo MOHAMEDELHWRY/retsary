@@ -55,14 +55,35 @@ export default function CustomerSalesPage() {
   }, [searchParams]);
 
   const filteredSalesData = useMemo(() => {
-    return customerSales
+    const data = customerSales
       .filter(sale => {
         const customerMatch = !customer || customer === 'all_customers' ? true : sale.customerName === customer;
         const dateFromMatch = dateFrom ? new Date(sale.date) >= new Date(dateFrom) : true;
         const dateToMatch = dateTo ? new Date(sale.date) <= new Date(dateTo) : true;
         return customerMatch && dateFromMatch && dateToMatch;
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Calculate cumulative paid amount
+    let cumulativePaid = 0;
+    return data.map(sale => {
+      if (sale.status !== 'رصيد دائن' && sale.status !== 'دفعة مقدمة' && sale.paidAmount > 0) {
+        // This logic assumes payments are applied to invoices and we are showing invoice history
+        // A more accurate cumulative would need payment records.
+        // For now, let's assume paidAmount on invoice is a payment.
+      }
+      // This is a simplified cumulative logic based on invoice paid amounts which might not be fully accurate
+      // A proper ledger would be needed.
+      // Let's assume for now `paidAmount` on an invoice is a payment event.
+      // This logic needs to be revisited if a separate payments collection is used.
+      const payments = customerSales.filter(p => p.customerName === sale.customerName && new Date(p.date) <= new Date(sale.date) && p.paidAmount > 0);
+      cumulativePaid = payments.reduce((acc, curr) => acc + curr.paidAmount, 0);
+
+      return {
+        ...sale,
+        cumulativePaidAmount: cumulativePaid,
+      };
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [customerSales, customer, dateFrom, dateTo]);
 
 
@@ -492,6 +513,7 @@ export default function CustomerSalesPage() {
                   <TableHead className="text-right text-sm">تاريخ الفاتورة</TableHead>
                   <TableHead className="text-right text-sm">مبلغ الفاتورة</TableHead>
                   <TableHead className="text-right text-sm">المبلغ المدفوع</TableHead>
+                  <TableHead className="text-right text-sm">الإجمالي المدفوع التراكمي</TableHead>
                   <TableHead className="text-right text-sm">تاريخ الدفع</TableHead>
                   <TableHead className="text-right text-sm">طريقة الدفع</TableHead>
                   <TableHead className="text-right text-sm">الرصيد المتبقي</TableHead>
@@ -503,13 +525,13 @@ export default function CustomerSalesPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8">
+                  <TableCell colSpan={13} className="text-center py-8">
                     جاري تحميل البيانات...
                   </TableCell>
                 </TableRow>
               ) : filteredSalesData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} className="text-center py-8 text-gray-500">
+                  <TableCell colSpan={13} className="text-center py-8 text-gray-500">
                     <div className="flex flex-col items-center space-y-2">
                       <div className="text-lg">📊</div>
                       <div>لا توجد بيانات لعرضها</div>
@@ -534,8 +556,13 @@ export default function CustomerSalesPage() {
                       <TableCell className="text-green-600 font-semibold text-sm">
                         {sale.paidAmount.toLocaleString('ar-EG')} ج.م
                       </TableCell>
+                      <TableCell className="text-purple-600 font-semibold text-sm">
+                        {(sale.cumulativePaidAmount || 0).toLocaleString('ar-EG')} ج.م
+                      </TableCell>
                       <TableCell className="text-sm">
-                        {sale.paymentDate && sale.paymentDate instanceof Date ? format(sale.paymentDate, 'yyyy-MM-dd') : '-'}
+                        {sale.paymentDate && sale.paymentDate instanceof Date && !isNaN(new Date(sale.paymentDate).getTime())
+                            ? format(new Date(sale.paymentDate), 'yyyy-MM-dd')
+                            : '-'}
                       </TableCell>
                       <TableCell className="text-sm">
                         {getPaymentMethodText(sale.paymentMethod || '') || '-'}
