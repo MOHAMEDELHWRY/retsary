@@ -704,7 +704,7 @@ export default function CustomerPaymentsPage() {
                   <TableHead className="min-w-[100px]">المورد</TableHead>
                   <TableHead className="min-w-[100px]">المحافظة</TableHead>
                   <TableHead className="min-w-[100px]">المركز</TableHead>
-                  <TableHead className="min-w-[120px]">الإجمالي المدفوع</TableHead>
+                  <TableHead className="min-w-[100px]">المبلغ</TableHead>
                   <TableHead className="min-w-[100px]">الرصيد الحالي</TableHead>
                   <TableHead className="min-w-[80px]">نوع الرصيد</TableHead>
                   <TableHead className="min-w-[80px]">الكمية</TableHead>
@@ -736,11 +736,10 @@ export default function CustomerPaymentsPage() {
                       <TableCell>{payment.supplierName}</TableCell>
                       <TableCell className="text-xs">{payment.governorate || <span className="text-muted-foreground">-</span>}</TableCell>
                       <TableCell className="text-xs">{payment.city || <span className="text-muted-foreground">-</span>}</TableCell>
-                      
-                      {/* الأعمدة المحاسبية الجديدة */}
-                      <TableCell className="font-semibold text-blue-700">
-                        {payment.cumulativeTotalPaid ? `${payment.cumulativeTotalPaid.toLocaleString('ar-EG')} ج.م` : <span className="text-muted-foreground">-</span>}
+                      <TableCell className="font-semibold text-gray-800">
+                        {payment.amount.toLocaleString('ar-EG')} ج.م
                       </TableCell>
+                      {/* الأعمدة المحاسبية الجديدة */}
                       <TableCell className={`font-semibold ${
                         payment.balanceType === 'creditor' ? 'text-green-700' : 
                         payment.balanceType === 'debtor' ? 'text-red-700' : 'text-gray-700'
@@ -1470,7 +1469,5 @@ export default function CustomerPaymentsPage() {
     </div>
   );
 }
-
-    
 
     
