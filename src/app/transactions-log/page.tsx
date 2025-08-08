@@ -646,7 +646,7 @@ export default function TransactionsLogPage() {
                   </div>
               </div>
           </CardHeader>
-          <CardContent className="relative overflow-auto max-h-[60vh]">
+          <CardContent className="relative overflow-auto max-h-[70vh]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1233,12 +1233,3 @@ export default function TransactionsLogPage() {
     </div>
   );
 }
-
-
-
-    
-    
-
-    
-
-
