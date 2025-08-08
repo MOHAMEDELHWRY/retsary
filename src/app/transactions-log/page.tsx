@@ -583,13 +583,13 @@ export default function TransactionsLogPage() {
   }
 
   return (
-    <div className="container mx-auto">
-      <header className="flex items-center justify-between mb-8 pt-8 px-4 md:px-8">
+    <div className="container-fluid">
+      <header className="flex items-center justify-between mb-8 pt-8 px-4">
         <h1 className="text-3xl font-bold text-primary">سجل العمليات</h1>
         <Button onClick={() => handleOpenDialog(null)}><Plus className="ml-2 h-4 w-4" />إضافة عملية</Button>
       </header>
       
-      <Card className="mx-4 md:mx-8">
+      <Card className="mx-4">
           <CardHeader>
               <CardTitle>فلترة العمليات</CardTitle>
               <div className="flex flex-col md:flex-row gap-2 mt-4">
@@ -646,7 +646,7 @@ export default function TransactionsLogPage() {
                   </div>
               </div>
           </CardHeader>
-          <CardContent className="relative overflow-auto max-h-[70vh]">
+          <CardContent className="overflow-auto max-h-[70vh]">
             <Table>
               <TableHeader>
                 <TableRow>
