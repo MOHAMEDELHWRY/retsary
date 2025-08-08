@@ -228,7 +228,6 @@ export default function TransactionsLogPage() {
       paymentMethodToFactory: undefined,
       paymentMethodFromSupplier: undefined,
       actualQuantityDeducted: 0,
-      transactionDate: undefined,
       transactionNumber: "",
       carrierName: "",
       carrierPhone: "",
@@ -650,7 +649,37 @@ export default function TransactionsLogPage() {
           <CardContent>
               <div className="relative w-full overflow-auto">
                   <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                      <TableHeader><TableRow><TableHead>م</TableHead><TableHead>رقم العملية</TableHead><TableHead>اسم العميل</TableHead><TableHead>التاريخ</TableHead><TableHead>تاريخ التنفيذ</TableHead><TableHead>اسم المورد</TableHead><TableHead>الوصف</TableHead><TableHead>المنطقة</TableHead><TableHead>الكمية / التفاصيل</TableHead><TableHead>الكمية المخصومة</TableHead><TableHead>الكمية المتبقية</TableHead><TableHead>المبلغ المتبقي</TableHead><TableHead>إجمالي الشراء</TableHead><TableHead>إجمالي البيع</TableHead><TableHead>صافي الربح</TableHead><TableHead>المدفوع للمصنع</TableHead><TableHead>القائم بالدفع</TableHead><TableHead>طريقة دفع المصنع</TableHead><TableHead>المستلم من المورد</TableHead><TableHead>طريقة استلام المورد</TableHead><TableHead>المستلم من العميل</TableHead><TableHead>طريقة استلام العميل</TableHead><TableHead>الناقل</TableHead><TableHead>هاتف الناقل</TableHead><TableHead>تاريخ الخروج</TableHead><TableHead>المرفقات</TableHead><TableHead>الإجراءات</TableHead></TableRow></TableHeader>
+                      <TableHeader className="sticky top-0 bg-card z-10">
+                          <TableRow>
+                            <TableHead>م</TableHead>
+                            <TableHead>رقم العملية</TableHead>
+                            <TableHead>اسم العميل</TableHead>
+                            <TableHead>التاريخ</TableHead>
+                            <TableHead>تاريخ التنفيذ</TableHead>
+                            <TableHead>اسم المورد</TableHead>
+                            <TableHead>الوصف</TableHead>
+                            <TableHead>المنطقة</TableHead>
+                            <TableHead>الكمية / التفاصيل</TableHead>
+                            <TableHead>الكمية المخصومة</TableHead>
+                            <TableHead>الكمية المتبقية</TableHead>
+                            <TableHead>المبلغ المتبقي</TableHead>
+                            <TableHead>إجمالي الشراء</TableHead>
+                            <TableHead>إجمالي البيع</TableHead>
+                            <TableHead>صافي الربح</TableHead>
+                            <TableHead>المدفوع للمصنع</TableHead>
+                            <TableHead>القائم بالدفع</TableHead>
+                            <TableHead>طريقة دفع المصنع</TableHead>
+                            <TableHead>المستلم من المورد</TableHead>
+                            <TableHead>طريقة استلام المورد</TableHead>
+                            <TableHead>المستلم من العميل</TableHead>
+                            <TableHead>طريقة استلام العميل</TableHead>
+                            <TableHead>الناقل</TableHead>
+                            <TableHead>هاتف الناقل</TableHead>
+                            <TableHead>تاريخ الخروج</TableHead>
+                            <TableHead>المرفقات</TableHead>
+                            <TableHead>الإجراءات</TableHead>
+                        </TableRow>
+                    </TableHeader>
                       <TableBody>
                         {filteredAndSortedTransactions.map((t, index) => (
                           <TableRow key={t.id}>
@@ -1209,4 +1238,5 @@ export default function TransactionsLogPage() {
 
 
 
+    
     
