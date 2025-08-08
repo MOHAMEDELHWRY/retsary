@@ -646,113 +646,111 @@ export default function TransactionsLogPage() {
                   </div>
               </div>
           </CardHeader>
-          <CardContent>
-              <div className="relative w-full overflow-auto">
-                  <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                      <TableHeader className="sticky top-0 bg-card z-10">
-                          <TableRow>
-                            <TableHead>م</TableHead>
-                            <TableHead>رقم العملية</TableHead>
-                            <TableHead>اسم العميل</TableHead>
-                            <TableHead>التاريخ</TableHead>
-                            <TableHead>تاريخ التنفيذ</TableHead>
-                            <TableHead>اسم المورد</TableHead>
-                            <TableHead>الوصف</TableHead>
-                            <TableHead>المنطقة</TableHead>
-                            <TableHead>الكمية / التفاصيل</TableHead>
-                            <TableHead>الكمية المخصومة</TableHead>
-                            <TableHead>الكمية المتبقية</TableHead>
-                            <TableHead>المبلغ المتبقي</TableHead>
-                            <TableHead>إجمالي الشراء</TableHead>
-                            <TableHead>إجمالي البيع</TableHead>
-                            <TableHead>صافي الربح</TableHead>
-                            <TableHead>المدفوع للمصنع</TableHead>
-                            <TableHead>القائم بالدفع</TableHead>
-                            <TableHead>طريقة دفع المصنع</TableHead>
-                            <TableHead>المستلم من المورد</TableHead>
-                            <TableHead>طريقة استلام المورد</TableHead>
-                            <TableHead>المستلم من العميل</TableHead>
-                            <TableHead>طريقة استلام العميل</TableHead>
-                            <TableHead>الناقل</TableHead>
-                            <TableHead>هاتف الناقل</TableHead>
-                            <TableHead>تاريخ الخروج</TableHead>
-                            <TableHead>المرفقات</TableHead>
-                            <TableHead>الإجراءات</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                      <TableBody>
-                        {filteredAndSortedTransactions.map((t, index) => (
-                          <TableRow key={t.id}>
-                            <TableCell>{filteredAndSortedTransactions.length - index}</TableCell>
-                            <TableCell>{t.operationNumber || '-'}</TableCell>
-                            <TableCell>{t.customerName || '-'}</TableCell>
-                            <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
-                            <TableCell>{t.showExecutionDate && t.executionDate ? format(t.executionDate, 'dd MMMM yyyy', { locale: ar }) : '-'}</TableCell>
-                            <TableCell>{t.supplierName}</TableCell>
-                            <TableCell>{t.description}</TableCell>
-                            <TableCell>{t.governorate || '-'}{t.city ? ` - ${t.city}` : ''}</TableCell>
-                            <TableCell>{t.quantity} طن{t.variety ? ` / ${t.variety}` : ''}</TableCell>
-                            <TableCell className="text-orange-600 font-medium">{(t.actualQuantityDeducted || 0).toFixed(2)} طن</TableCell>
-                            <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
-                            <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell>{t.totalPurchasePrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell>{t.totalSellingPrice > 0 ? t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
-                            <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell>{t.amountPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell>{t.paidBy || '-'}</TableCell>
-                            <TableCell>
-                              {t.paymentMethodToFactory === 'نقدي' && '💵 نقدي'}
-                              {t.paymentMethodToFactory === 'تحويل بنكي' && '🏦 تحويل بنكي'}
-                              {t.paymentMethodToFactory === 'إيداع' && '💳 إيداع'}
-                              {!t.paymentMethodToFactory && '-'}
-                            </TableCell>
-                            <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell>
-                              {t.paymentMethodFromSupplier === 'نقدي' && '💵 نقدي'}
-                              {t.paymentMethodFromSupplier === 'تحويل بنكي' && '🏦 تحويل بنكي'}
-                              {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
-                              {!t.paymentMethodFromSupplier && '-'}
-                            </TableCell>
-                            <TableCell>{(t.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell>
-                              {t.paymentMethodFromCustomer === 'نقدي' && '💵 نقدي'}
-                              {t.paymentMethodFromCustomer === 'تحويل بنكي' && '🏦 تحويل بنكي'}
-                              {t.paymentMethodFromCustomer === 'إيداع' && '💳 إيداع'}
-                              {t.paymentMethodFromCustomer === 'شيك' && '📄 شيك'}
-                              {!t.paymentMethodFromCustomer && '-'}
-                            </TableCell>
-                            <TableCell>{t.carrierName || '-'}</TableCell>
-                            <TableCell>{t.carrierPhone || '-'}</TableCell>
-                            <TableCell>{t.departureDate ? format(t.departureDate, 'dd-MM-yy') : '-'}</TableCell>
-                            <TableCell>
-                              {t.attachments && t.attachments.length > 0 ? (
-                                <button
-                                  onClick={() => handlePreviewAttachments(t.attachments, t)}
-                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  <span className="text-sm font-medium">{t.attachments.length}</span>
-                                </button>
-                              ) : ('-')}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(t)}><Pencil className="h-4 w-4" /></Button>
-                                {t.customerName && (<Button variant="ghost" size="icon" onClick={() => handleCreatePaymentFromTransaction(t)} title="إنشاء مدفوعة عميل من هذه العملية"><CreditCard className="h-4 w-4 text-blue-600" /></Button>)}
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle><AlertDialogDescription>هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف العملية بشكل دائم.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteTransaction(t.id)}>متابعة</AlertDialogAction></AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                  </Table>
-              </div>
+          <CardContent className="overflow-auto max-h-[60vh]">
+              <Table>
+                <TableHeader className="sticky top-0 bg-card z-10">
+                  <TableRow>
+                    <TableHead>م</TableHead>
+                    <TableHead>رقم العملية</TableHead>
+                    <TableHead>اسم العميل</TableHead>
+                    <TableHead>التاريخ</TableHead>
+                    <TableHead>تاريخ التنفيذ</TableHead>
+                    <TableHead>اسم المورد</TableHead>
+                    <TableHead>الوصف</TableHead>
+                    <TableHead>المنطقة</TableHead>
+                    <TableHead>الكمية / التفاصيل</TableHead>
+                    <TableHead>الكمية المخصومة</TableHead>
+                    <TableHead>الكمية المتبقية</TableHead>
+                    <TableHead>المبلغ المتبقي</TableHead>
+                    <TableHead>إجمالي الشراء</TableHead>
+                    <TableHead>إجمالي البيع</TableHead>
+                    <TableHead>صافي الربح</TableHead>
+                    <TableHead>المدفوع للمصنع</TableHead>
+                    <TableHead>القائم بالدفع</TableHead>
+                    <TableHead>طريقة دفع المصنع</TableHead>
+                    <TableHead>المستلم من المورد</TableHead>
+                    <TableHead>طريقة استلام المورد</TableHead>
+                    <TableHead>المستلم من العميل</TableHead>
+                    <TableHead>طريقة استلام العميل</TableHead>
+                    <TableHead>الناقل</TableHead>
+                    <TableHead>هاتف الناقل</TableHead>
+                    <TableHead>تاريخ الخروج</TableHead>
+                    <TableHead>المرفقات</TableHead>
+                    <TableHead>الإجراءات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAndSortedTransactions.map((t, index) => (
+                    <TableRow key={t.id}>
+                      <TableCell>{filteredAndSortedTransactions.length - index}</TableCell>
+                      <TableCell>{t.operationNumber || '-'}</TableCell>
+                      <TableCell>{t.customerName || '-'}</TableCell>
+                      <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
+                      <TableCell>{t.showExecutionDate && t.executionDate ? format(t.executionDate, 'dd MMMM yyyy', { locale: ar }) : '-'}</TableCell>
+                      <TableCell>{t.supplierName}</TableCell>
+                      <TableCell>{t.description}</TableCell>
+                      <TableCell>{t.governorate || '-'}{t.city ? ` - ${t.city}` : ''}</TableCell>
+                      <TableCell>{t.quantity} طن{t.variety ? ` / ${t.variety}` : ''}</TableCell>
+                      <TableCell className="text-orange-600 font-medium">{(t.actualQuantityDeducted || 0).toFixed(2)} طن</TableCell>
+                      <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
+                      <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{t.totalPurchasePrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{t.totalSellingPrice > 0 ? t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                      <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{t.amountPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{t.paidBy || '-'}</TableCell>
+                      <TableCell>
+                        {t.paymentMethodToFactory === 'نقدي' && '💵 نقدي'}
+                        {t.paymentMethodToFactory === 'تحويل بنكي' && '🏦 تحويل بنكي'}
+                        {t.paymentMethodToFactory === 'إيداع' && '💳 إيداع'}
+                        {!t.paymentMethodToFactory && '-'}
+                      </TableCell>
+                      <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>
+                        {t.paymentMethodFromSupplier === 'نقدي' && '💵 نقدي'}
+                        {t.paymentMethodFromSupplier === 'تحويل بنكي' && '🏦 تحويل بنكي'}
+                        {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
+                        {!t.paymentMethodFromSupplier && '-'}
+                      </TableCell>
+                      <TableCell>{(t.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>
+                        {t.paymentMethodFromCustomer === 'نقدي' && '💵 نقدي'}
+                        {t.paymentMethodFromCustomer === 'تحويل بنكي' && '🏦 تحويل بنكي'}
+                        {t.paymentMethodFromCustomer === 'إيداع' && '💳 إيداع'}
+                        {t.paymentMethodFromCustomer === 'شيك' && '📄 شيك'}
+                        {!t.paymentMethodFromCustomer && '-'}
+                      </TableCell>
+                      <TableCell>{t.carrierName || '-'}</TableCell>
+                      <TableCell>{t.carrierPhone || '-'}</TableCell>
+                      <TableCell>{t.departureDate ? format(t.departureDate, 'dd-MM-yy') : '-'}</TableCell>
+                      <TableCell>
+                        {t.attachments && t.attachments.length > 0 ? (
+                          <button
+                            onClick={() => handlePreviewAttachments(t.attachments, t)}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span className="text-sm font-medium">{t.attachments.length}</span>
+                          </button>
+                        ) : ('-')}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(t)}><Pencil className="h-4 w-4" /></Button>
+                          {t.customerName && (<Button variant="ghost" size="icon" onClick={() => handleCreatePaymentFromTransaction(t)} title="إنشاء مدفوعة عميل من هذه العملية"><CreditCard className="h-4 w-4 text-blue-600" /></Button>)}
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader><AlertDialogTitle>هل أنت متأكد تمامًا؟</AlertDialogTitle><AlertDialogDescription>هذا الإجراء لا يمكن التراجع عنه. سيؤدي هذا إلى حذف العملية بشكل دائم.</AlertDialogDescription></AlertDialogHeader>
+                              <AlertDialogFooter><AlertDialogCancel>إلغاء</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteTransaction(t.id)}>متابعة</AlertDialogAction></AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
           </CardContent>
       </Card>
       {/* Dialogs and other components */}
@@ -1239,4 +1237,6 @@ export default function TransactionsLogPage() {
 
 
     
+    
+
     
