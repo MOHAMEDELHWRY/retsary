@@ -956,7 +956,7 @@ function TransactionsLogPageContent() {
                           <div className="p-3 border rounded-lg space-y-3">
                             <h4 className="font-medium text-sm">دفعة من المورد</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ المستلم</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                               <FormField control={form.control} name="receivedBy" render={({ field }) => (
                                 <FormItem><FormLabel>إلى (المستلم)</FormLabel>
                                   <Select onValueChange={field.onChange} value={field.value}>
@@ -1333,6 +1333,7 @@ export default function TransactionsLogPage() {
     </React.Suspense>
   );
 }
+
 
 
 
