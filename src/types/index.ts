@@ -4,6 +4,7 @@
 
 
 
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -25,9 +26,13 @@ export type Transaction = {
   totalSellingPrice: number;
   taxes: number;
   profit: number;
+  
   amountPaidToFactory: number;
+  paidBy?: string; // من قام بالدفع للمصنع
+
   amountReceivedFromSupplier: number;
-  paidBy?: string; //  من قام بالدفع للمصنع
+  receivedBy?: string; // من استلم المبلغ من المورد
+  
   notes?: string; // ملاحظات
   
   // طرق الدفع الجديدة
@@ -58,6 +63,7 @@ export type Transaction = {
   amountReceivedFromCustomer?: number; // المبلغ المستلم من العميل
   dateReceivedFromCustomer?: Date; // تاريخ استلام المبلغ من العميل
   paymentMethodFromCustomer?: 'نقدي' | 'تحويل بنكي' | 'إيداع' | 'شيك'; // طريقة استلام المبلغ من العميل
+  customerPaymentReceivedBy?: string; // من استلم المبلغ من العميل
 };
 
 export type Expense = {

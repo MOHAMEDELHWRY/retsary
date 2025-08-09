@@ -103,9 +103,13 @@ const transactionSchema = z.object({
   purchasePrice: z.coerce.number().min(0, 'سعر الشراء يجب أن يكون موجبًا.').default(0),
   sellingPrice: z.coerce.number().min(0, 'سعر البيع يجب أن يكون موجبًا.').default(0),
   taxes: z.coerce.number().min(0, 'الضرائب يجب أن تكون موجبة.').default(0),
+  
   amountPaidToFactory: z.coerce.number().min(0, 'المبلغ المدفوع يجب أن يكون موجبًا.').default(0),
-  paidBy: z.string().optional(), //  من قام بالدفع للمصنع
+  paidBy: z.string().optional(), 
+  
   amountReceivedFromSupplier: z.coerce.number().min(0, 'المبلغ المستلم يجب أن يكون موجبًا.').default(0),
+  receivedBy: z.string().optional(),
+
   notes: z.string().optional(),
   
   paymentMethodToFactory: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
@@ -122,6 +126,7 @@ const transactionSchema = z.object({
   amountReceivedFromCustomer: z.coerce.number().min(0).optional(),
   dateReceivedFromCustomer: z.date().optional(),
   paymentMethodFromCustomer: z.enum(['نقدي', 'تحويل بنكي', 'إيداع', 'شيك']).optional(),
+  customerPaymentReceivedBy: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -215,6 +220,7 @@ function TransactionsLogPageContent() {
   };
   
   const [availableCities, setAvailableCities] = useState<string[]>([]);
+  const allEntities = useMemo(() => Array.from(new Set([...supplierNames, ...customerNames])).sort(), [supplierNames, customerNames]);
 
   const form = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -237,6 +243,7 @@ function TransactionsLogPageContent() {
       amountPaidToFactory: 0, 
       paidBy: "",
       amountReceivedFromSupplier: 0, 
+      receivedBy: "",
       showExecutionDate: false,
       paymentMethodToFactory: undefined,
       paymentMethodFromSupplier: undefined,
@@ -248,6 +255,7 @@ function TransactionsLogPageContent() {
       amountReceivedFromCustomer: 0,
       dateReceivedFromCustomer: undefined,
       paymentMethodFromCustomer: undefined,
+      customerPaymentReceivedBy: "",
       notes: "",
     },
   });
@@ -273,6 +281,7 @@ function TransactionsLogPageContent() {
         operationNumber: transaction.operationNumber || '',
         customerName: transaction.customerName || '',
         paidBy: transaction.paidBy || '',
+        receivedBy: transaction.receivedBy || '',
         date: new Date(transaction.date),
         executionDate: transaction.executionDate ? new Date(transaction.executionDate) : undefined,
         dueDate: transaction.dueDate ? new Date(transaction.dueDate) : undefined,
@@ -293,6 +302,7 @@ function TransactionsLogPageContent() {
         amountReceivedFromCustomer: transaction.amountReceivedFromCustomer || 0,
         dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
         paymentMethodFromCustomer: transaction.paymentMethodFromCustomer || undefined,
+        customerPaymentReceivedBy: transaction.customerPaymentReceivedBy || "",
         notes: transaction.notes || "",
       });
        if (transaction.governorate) setAvailableCities(cities[transaction.governorate] || []);
@@ -317,6 +327,7 @@ function TransactionsLogPageContent() {
         amountPaidToFactory: 0, 
         paidBy: "",
         amountReceivedFromSupplier: 0, 
+        receivedBy: "",
         showExecutionDate: false,
         paymentMethodToFactory: undefined,
         paymentMethodFromSupplier: undefined,
@@ -328,6 +339,7 @@ function TransactionsLogPageContent() {
         amountReceivedFromCustomer: 0,
         dateReceivedFromCustomer: undefined,
         paymentMethodFromCustomer: undefined,
+        customerPaymentReceivedBy: "",
         notes: "",
       });
     }
@@ -681,10 +693,10 @@ function TransactionsLogPageContent() {
                   <TableHead>إجمالي الشراء</TableHead>
                   <TableHead>إجمالي البيع</TableHead>
                   <TableHead>صافي الربح</TableHead>
-                  <TableHead>المدفوع للمصنع</TableHead>
-                  <TableHead>الدافع (للمصنع)</TableHead>
+                  <TableHead>مدفوع للمصنع</TableHead>
+                  <TableHead>الدافع للمصنع</TableHead>
                   <TableHead>طريقة دفع المصنع</TableHead>
-                  <TableHead>المبلغ المستلم</TableHead>
+                  <TableHead>المستلم من المورد</TableHead>
                   <TableHead>طريقة استلام المورد</TableHead>
                   <TableHead>المستلم من العميل</TableHead>
                   <TableHead>طريقة استلام العميل</TableHead>
@@ -722,14 +734,14 @@ function TransactionsLogPageContent() {
                         {t.paymentMethodToFactory === 'إيداع' && '💳 إيداع'}
                         {!t.paymentMethodToFactory && '-'}
                       </TableCell>
-                      <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{t.receivedBy || '-'}</TableCell>
                       <TableCell>
                         {t.paymentMethodFromSupplier === 'نقدي' && '💵 نقدي'}
                         {t.paymentMethodFromSupplier === 'تحويل بنكي' && '🏦 تحويل بنكي'}
                         {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
                         {!t.paymentMethodFromSupplier && '-'}
                       </TableCell>
-                      <TableCell>{(t.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{t.customerPaymentReceivedBy || '-'}</TableCell>
                       <TableCell>
                         {t.paymentMethodFromCustomer === 'نقدي' && '💵 نقدي'}
                         {t.paymentMethodFromCustomer === 'تحويل بنكي' && '🏦 تحويل بنكي'}
@@ -895,89 +907,107 @@ function TransactionsLogPageContent() {
                     <AccordionItem value="item-3">
                       <AccordionTrigger>المدفوعات والتواريخ الهامة</AccordionTrigger>
                       <AccordionContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                          <FormField control={form.control} name="amountPaidToFactory" render={({ field }) => (
-                            <FormItem><FormLabel>المبلغ المدفوع للمصنع</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
+                        <div className="space-y-4 pt-4">
+                           {/* دفعة للمصنع */}
+                          <div className="p-3 border rounded-lg space-y-3">
+                            <h4 className="font-medium text-sm">دفعة للمصنع</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <FormField control={form.control} name="amountPaidToFactory" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormField control={form.control} name="paidBy" render={({ field }) => (
+                                <FormItem><FormLabel>من (الدافع)</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="اختر الدافع" /></SelectTrigger></FormControl>
+                                    <SelectContent>{allEntities.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                              <FormItem><FormLabel>إلى (المستلم)</FormLabel><Input value="المصنع" readOnly disabled /></FormItem>
+                            </div>
+                            <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (<FormItem><FormLabel>طريقة الدفع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                          </div>
+                          
+                          {/* دفعة من المورد */}
+                          <div className="p-3 border rounded-lg space-y-3">
+                            <h4 className="font-medium text-sm">دفعة من المورد</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormItem><FormLabel>من (الدافع)</FormLabel><Input value={watchedValues.supplierName || 'المورد المحدد'} readOnly disabled /></FormItem>
+                              <FormField control={form.control} name="receivedBy" render={({ field }) => (
+                                <FormItem><FormLabel>إلى (المستلم)</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
+                                    <SelectContent>{allEntities.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            </div>
+                            <FormField control={form.control} name="paymentMethodFromSupplier" render={({ field }) => (<FormItem><FormLabel>طريقة الاستلام</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الاستلام" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                          </div>
+
+                          {/* دفعة من العميل */}
+                          <div className="p-3 border rounded-lg space-y-3">
+                            <h4 className="font-medium text-sm">دفعة من العميل</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormItem><FormLabel>من (الدافع)</FormLabel><Input value={watchedValues.customerName || 'العميل المحدد'} readOnly disabled={!watchedValues.customerName} /></FormItem>
+                                <FormField control={form.control} name="customerPaymentReceivedBy" render={({ field }) => (
+                                  <FormItem><FormLabel>إلى (المستلم)</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
+                                      <SelectContent>{allEntities.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <FormField control={form.control} name="paymentMethodFromCustomer" render={({ field }) => (<FormItem><FormLabel>طريقة الاستلام من العميل</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الاستلام" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem><SelectItem value="شيك">شيك</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                              <FormField control={form.control} name="dateReceivedFromCustomer" render={({ field }) => (
+                                <FormItem className="flex flex-col"><FormLabel>تاريخ الاستلام من العميل</FormLabel><Popover modal={false} open={isDateReceivedPopoverOpen} onOpenChange={setIsDateReceivedPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDateReceivedPopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                              )} />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                            <FormField control={form.control} name="executionDate" render={({ field }) => (
+                              <FormItem className="flex flex-col"><FormLabel>تاريخ التنفيذ (اختياري)</FormLabel><Popover modal={false} open={isExecDatePopoverOpen} onOpenChange={setIsExecDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsExecDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                            )} />
+                            <FormField control={form.control} name="showExecutionDate" render={({ field }) => (
+                              <FormItem className="flex items-center space-x-2">
+                                <FormControl>
+                                  <input
+                                    type="checkbox"
+                                    checked={field.value}
+                                    onChange={(e) => field.onChange(e.target.checked)}
+                                    className="h-4 w-4 rounded border"
+                                  />
+                                </FormControl>
+                                <FormLabel className="mb-0 flex-1 cursor-pointer">إظهار تاريخ التنفيذ</FormLabel>
+                              </FormItem>
+                            )} />
+                            <FormField control={form.control} name="dueDate" render={({ field }) => (
+                              <FormItem className="flex flex-col"><FormLabel>تاريخ الاستحقاق (اختياري)</FormLabel><Popover modal={false} open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDueDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
+                            )} />
+                          </div>
                           <FormField
                             control={form.control}
-                            name="paidBy"
+                            name="notes"
                             render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>الدافع (للمصنع)</FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="اختر القائم بالدفع" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {supplierNames.map((name) => (
-                                      <SelectItem key={name} value={name}>{name}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                              <FormItem className="mt-4">
+                                <FormLabel>ملاحظات (اختياري)</FormLabel>
+                                <FormControl>
+                                  <Textarea
+                                    placeholder="أضف أي ملاحظات أو تفاصيل إضافية هنا..."
+                                    {...field}
+                                  />
+                                </FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
-                          <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (
-                            <FormItem><FormLabel>طريقة الدفع للمصنع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                          )} />
-                          <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (
-                            <FormItem><FormLabel>المبلغ المستلم</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
-                          <FormField control={form.control} name="paymentMethodFromSupplier" render={({ field }) => (
-                            <FormItem><FormLabel>طريقة الاستلام</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الاستلام" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                          )} />
-                          
-                          <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (
-                            <FormItem><FormLabel>المبلغ المستلم من العميل</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
-                          <FormField control={form.control} name="paymentMethodFromCustomer" render={({ field }) => (
-                            <FormItem><FormLabel>طريقة الاستلام من العميل</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الاستلام" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem><SelectItem value="شيك">شيك</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-                          )} />
-                          <FormField control={form.control} name="dateReceivedFromCustomer" render={({ field }) => (
-                            <FormItem className="flex flex-col"><FormLabel>تاريخ الاستلام من العميل</FormLabel><Popover modal={false} open={isDateReceivedPopoverOpen} onOpenChange={setIsDateReceivedPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDateReceivedPopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
-                          )} />
-
-
-                          <FormField control={form.control} name="executionDate" render={({ field }) => (
-                            <FormItem className="flex flex-col"><FormLabel>تاريخ التنفيذ (اختياري)</FormLabel><Popover modal={false} open={isExecDatePopoverOpen} onOpenChange={setIsExecDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsExecDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
-                          )} />
-                          <FormField control={form.control} name="showExecutionDate" render={({ field }) => (
-                            <FormItem className="flex items-center space-x-2">
-                              <FormControl>
-                                <input
-                                  type="checkbox"
-                                  checked={field.value}
-                                  onChange={(e) => field.onChange(e.target.checked)}
-                                  className="h-4 w-4 rounded border"
-                                />
-                              </FormControl>
-                              <FormLabel className="mb-0 flex-1 cursor-pointer">إظهار تاريخ التنفيذ</FormLabel>
-                            </FormItem>
-                          )} />
-                          <FormField control={form.control} name="dueDate" render={({ field }) => (
-                            <FormItem className="flex flex-col"><FormLabel>تاريخ الاستحقاق (اختياري)</FormLabel><Popover modal={false} open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDueDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
-                          )} />
                         </div>
-                        <FormField
-                          control={form.control}
-                          name="notes"
-                          render={({ field }) => (
-                            <FormItem className="mt-4">
-                              <FormLabel>ملاحظات (اختياري)</FormLabel>
-                              <FormControl>
-                                <Textarea
-                                  placeholder="أضف أي ملاحظات أو تفاصيل إضافية هنا..."
-                                  {...field}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
                       </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-6">
@@ -1275,4 +1305,5 @@ export default function TransactionsLogPage() {
     </React.Suspense>
   );
 }
+
 
