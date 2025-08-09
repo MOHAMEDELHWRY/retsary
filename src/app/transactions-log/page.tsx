@@ -296,6 +296,7 @@ function TransactionsLogPageContent() {
         departureDate: transaction.departureDate ? new Date(transaction.departureDate) : undefined,
         datePaidToFactory: transaction.datePaidToFactory ? new Date(transaction.datePaidToFactory) : undefined,
         dateReceivedFromSupplier: transaction.dateReceivedFromSupplier ? new Date(transaction.dateReceivedFromSupplier) : undefined,
+        dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
         showExecutionDate: transaction.showExecutionDate ?? false,
         governorate: transaction.governorate || '',
         city: transaction.city || '',
@@ -309,7 +310,6 @@ function TransactionsLogPageContent() {
         carrierName: transaction.carrierName || "",
         carrierPhone: transaction.carrierPhone || "",
         amountReceivedFromCustomer: transaction.amountReceivedFromCustomer || 0,
-        dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
         paymentMethodFromCustomer: transaction.paymentMethodFromCustomer || undefined,
         customerPaymentReceivedBy: transaction.customerPaymentReceivedBy || "",
         notes: transaction.notes || "",
@@ -689,7 +689,7 @@ function TransactionsLogPageContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>م</TableHead>
+                  <TableHead className="sticky right-0 bg-card z-20">م</TableHead>
                   <TableHead>رقم العملية</TableHead>
                   <TableHead>اسم العميل</TableHead>
                   <TableHead>التاريخ</TableHead>
@@ -708,6 +708,7 @@ function TransactionsLogPageContent() {
                   <TableHead>الدافع للمصنع</TableHead>
                   <TableHead>ت. دفع المصنع</TableHead>
                   <TableHead>طريقة دفع المصنع</TableHead>
+                  <TableHead>المبلغ المستلم</TableHead>
                   <TableHead>المستلم من المورد</TableHead>
                   <TableHead>ت. استلام المورد</TableHead>
                   <TableHead>طريقة استلام المورد</TableHead>
@@ -728,7 +729,7 @@ function TransactionsLogPageContent() {
                       onClick={() => setSelectedRowId(t.id)}
                       data-state={selectedRowId === t.id ? 'selected' : 'unselected'}
                     >
-                      <TableCell>{filteredAndSortedTransactions.length - index}</TableCell>
+                      <TableCell className="sticky right-0 bg-card z-20">{filteredAndSortedTransactions.length - index}</TableCell>
                       <TableCell>{t.operationNumber || '-'}</TableCell>
                       <TableCell>{t.customerName || '-'}</TableCell>
                       <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
@@ -752,6 +753,7 @@ function TransactionsLogPageContent() {
                         {t.paymentMethodToFactory === 'إيداع' && '💳 إيداع'}
                         {!t.paymentMethodToFactory && '-'}
                       </TableCell>
+                      <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>{t.receivedBy || '-'}</TableCell>
                        <TableCell>{t.dateReceivedFromSupplier ? format(t.dateReceivedFromSupplier, 'dd-MM-yy') : '-'}</TableCell>
                       <TableCell>
@@ -1331,6 +1333,7 @@ export default function TransactionsLogPage() {
     </React.Suspense>
   );
 }
+
 
 
 

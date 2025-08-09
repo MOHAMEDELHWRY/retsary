@@ -30,6 +30,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Truck,
 } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { format } from 'date-fns';
@@ -123,9 +124,15 @@ const transactionSchema = z.object({
   actualQuantityDeducted: z.coerce.number().min(0, 'الكمية الفعلية يجب أن تكون موجبة.').optional(),
   transactionDate: z.date().optional(),
   transactionNumber: z.string().optional(),
-  
-  // المرفقات - تعامل منفصل عن validation النموذج
-  // attachments: handled separately
+
+  carrierName: z.string().optional(),
+  carrierPhone: z.string().optional(),
+  departureDate: z.date().optional(),
+
+  amountReceivedFromCustomer: z.coerce.number().min(0).optional(),
+  dateReceivedFromCustomer: z.date().optional(),
+  paymentMethodFromCustomer: z.enum(['نقدي', 'تحويل بنكي', 'إيداع', 'شيك']).optional(),
+  customerPaymentReceivedBy: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -193,6 +200,8 @@ export default function AccountingDashboard() {
   const [isExecDatePopoverOpen, setIsExecDatePopoverOpen] = useState(false);
   const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
   const [isTransactionDatePopoverOpen, setIsTransactionDatePopoverOpen] = useState(false);
+  const [isDepartureDatePopoverOpen, setIsDepartureDatePopoverOpen] = useState(false);
+  const [isDateReceivedPopoverOpen, setIsDateReceivedPopoverOpen] = useState(false);
   const [isExpenseDatePopoverOpen, setIsExpenseDatePopoverOpen] = useState(false);
   const [isFilterDatePopoverOpen, setIsFilterDatePopoverOpen] = useState(false);
   const [isStartDatePopoverOpen, setIsStartDatePopoverOpen] = useState(false);
@@ -270,7 +279,14 @@ export default function AccountingDashboard() {
       // حقول إدارة المخزون الجديدة
       actualQuantityDeducted: 0,
       transactionDate: undefined,
-      transactionNumber: ""
+      transactionNumber: "",
+      carrierName: "",
+      carrierPhone: "",
+      departureDate: undefined,
+      amountReceivedFromCustomer: 0,
+      dateReceivedFromCustomer: undefined,
+      paymentMethodFromCustomer: undefined,
+      customerPaymentReceivedBy: "",
     },
   });
   const { watch, setValue } = form;
@@ -306,8 +322,10 @@ export default function AccountingDashboard() {
         executionDate: transaction.executionDate ? new Date(transaction.executionDate) : undefined,
         dueDate: transaction.dueDate ? new Date(transaction.dueDate) : undefined,
         transactionDate: transaction.transactionDate ? new Date(transaction.transactionDate) : undefined,
+        departureDate: transaction.departureDate ? new Date(transaction.departureDate) : undefined,
         datePaidToFactory: transaction.datePaidToFactory ? new Date(transaction.datePaidToFactory) : undefined,
         dateReceivedFromSupplier: transaction.dateReceivedFromSupplier ? new Date(transaction.dateReceivedFromSupplier) : undefined,
+        dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
         showExecutionDate: transaction.showExecutionDate ?? false,
         governorate: transaction.governorate || '',
         city: transaction.city || '',
@@ -318,7 +336,12 @@ export default function AccountingDashboard() {
         paymentMethodToFactory: transaction.paymentMethodToFactory || undefined,
         paymentMethodFromSupplier: transaction.paymentMethodFromSupplier || undefined,
         actualQuantityDeducted: transaction.actualQuantityDeducted || 0,
-        transactionNumber: transaction.transactionNumber || ''
+        transactionNumber: transaction.transactionNumber || '',
+        carrierName: transaction.carrierName || "",
+        carrierPhone: transaction.carrierPhone || "",
+        amountReceivedFromCustomer: transaction.amountReceivedFromCustomer || 0,
+        paymentMethodFromCustomer: transaction.paymentMethodFromCustomer || undefined,
+        customerPaymentReceivedBy: transaction.customerPaymentReceivedBy || "",
       });
        if (transaction.governorate) setAvailableCities(cities[transaction.governorate] || []);
     } else {
@@ -350,7 +373,14 @@ export default function AccountingDashboard() {
         paymentMethodToFactory: undefined,
         paymentMethodFromSupplier: undefined,
         actualQuantityDeducted: 0,
-        transactionNumber: ""
+        transactionNumber: "",
+        carrierName: "",
+        carrierPhone: "",
+        departureDate: undefined,
+        amountReceivedFromCustomer: 0,
+        dateReceivedFromCustomer: undefined,
+        paymentMethodFromCustomer: undefined,
+        customerPaymentReceivedBy: "",
       });
     }
     setIsDialogOpen(true);
@@ -991,9 +1021,28 @@ export default function AccountingDashboard() {
                           <FormField control={form.control} name="operationNumber" render={({ field }) => (
                             <FormItem><FormLabel>رقم العملية (اختياري)</FormLabel><FormControl><Input placeholder="رقم العملية" {...field} /></FormControl><FormMessage /></FormItem>
                           )} />
-                          <FormField control={form.control} name="customerName" render={({ field }) => (
-                            <FormItem><FormLabel>اسم العميل (اختياري)</FormLabel><FormControl><Input placeholder="اسم العميل" {...field} /></FormControl><FormMessage /></FormItem>
-                          )} />
+                          <FormField
+                            control={form.control}
+                            name="customerName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>اسم العميل (اختياري)</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="اختر العميل" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {customerNames.map((name) => (
+                                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                           <FormField
                             control={form.control}
                             name="supplierName"
@@ -1077,7 +1126,7 @@ export default function AccountingDashboard() {
                     <AccordionItem value="item-3">
                       <AccordionTrigger>المدفوعات والتواريخ الهامة</AccordionTrigger>
                       <AccordionContent>
-                       <div className="space-y-4 pt-4">
+                        <div className="space-y-4 pt-4">
                           {/* دفعة للمصنع */}
                           <div className="p-3 border rounded-lg space-y-3">
                             <h4 className="font-medium text-sm">دفعة للمصنع</h4>
@@ -1094,7 +1143,7 @@ export default function AccountingDashboard() {
                               )} />
                             </div>
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                               <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (<FormItem><FormLabel>طريقة الدفع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
+                               <FormField control={form.control} name="paymentMethodToFactory" render={({ field }) => (<FormItem><FormLabel>طريقة الدفع للمصنع</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="اختر طريقة الدفع" /></SelectTrigger></FormControl><SelectContent><SelectItem value="نقدي">نقدي</SelectItem><SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem><SelectItem value="إيداع">إيداع</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                                <FormField control={form.control} name="datePaidToFactory" render={({ field }) => (
                                 <FormItem className="flex flex-col"><FormLabel>تاريخ الدفع للمصنع</FormLabel><Popover modal={false} open={isDatePaidToFactoryPopoverOpen} onOpenChange={setIsDatePaidToFactoryPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDatePaidToFactoryPopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                               )} />
@@ -1105,7 +1154,7 @@ export default function AccountingDashboard() {
                           <div className="p-3 border rounded-lg space-y-3">
                             <h4 className="font-medium text-sm">دفعة من المورد</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ المستلم</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                               <FormField control={form.control} name="receivedBy" render={({ field }) => (
                                 <FormItem><FormLabel>إلى (المستلم)</FormLabel>
                                   <Select onValueChange={field.onChange} value={field.value}>
