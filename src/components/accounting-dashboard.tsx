@@ -130,6 +130,7 @@ const expenseSchema = z.object({
   amount: z.coerce.number().min(0, "المبلغ يجب أن يكون صفرًا أو أكبر."),
   paymentOrder: z.string().optional(),
   supplierName: z.string().optional(),
+  customerName: z.string().optional(),
 });
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
@@ -140,7 +141,8 @@ export default function AccountingDashboard() {
     expenses, addExpense, updateExpense, deleteExpense, 
     loading,
     createCustomerPaymentFromTransaction,
-    supplierNames
+    supplierNames,
+    customerNames,
   } = useTransactions();
   const { toast } = useToast();
 
@@ -266,7 +268,7 @@ export default function AccountingDashboard() {
   // Expense Form
   const expenseForm = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: { date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "" },
+    defaultValues: { date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "", customerName: "" },
   });
 
   useEffect(() => {
@@ -341,7 +343,7 @@ export default function AccountingDashboard() {
     if (expense) {
       expenseForm.reset({ ...expense, date: new Date(expense.date) });
     } else {
-      expenseForm.reset({ date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "" });
+      expenseForm.reset({ date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "", customerName: "" });
     }
     setIsExpenseDialogOpen(true);
   };
@@ -1418,8 +1420,11 @@ export default function AccountingDashboard() {
                   <FormField control={expenseForm.control} name="paymentOrder" render={({ field }) => (
                     <FormItem><FormLabel>أمر الصرف (اختياري)</FormLabel><FormControl><Input placeholder="رقم أمر الصرف" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="supplierName" render={({ field }) => (
-                    <FormItem><FormLabel>خصم من ربح المورد (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر موردًا لخصم المصروف من ربحه" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد مورد)</SelectItem>{supplierNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                  <FormField control={expenseForm.control} name="supplierName" render={({ field }) => (
+                    <FormItem><FormLabel>خصم من ربح المورد (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر موردًا" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد مورد)</SelectItem>{supplierNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={expenseForm.control} name="customerName" render={({ field }) => (
+                    <FormItem><FormLabel>خصم من ربح العميل (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر عميلاً" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد عميل)</SelectItem>{customerNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                   )} />
                   <FormField control={expenseForm.control} name="amount" render={({ field }) => (
                     <FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>

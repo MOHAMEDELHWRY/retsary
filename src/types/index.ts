@@ -2,6 +2,7 @@
 
 
 
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -65,6 +66,7 @@ export type Expense = {
   amount: number;
   paymentOrder?: string;
   supplierName?: string;
+  customerName?: string;
 };
 
 export type Supplier = {

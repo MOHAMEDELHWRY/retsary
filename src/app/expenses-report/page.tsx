@@ -64,11 +64,12 @@ const expenseSchema = z.object({
   amount: z.coerce.number().min(0, "المبلغ يجب أن يكون صفرًا أو أكبر."),
   paymentOrder: z.string().optional(),
   supplierName: z.string().optional(),
+  customerName: z.string().optional(),
 });
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 export default function ExpensesReportPage() {
-  const { expenses, addExpense, updateExpense, deleteExpense, supplierNames, loading } = useTransactions();
+  const { expenses, addExpense, updateExpense, deleteExpense, supplierNames, customerNames, loading } = useTransactions();
   const { toast } = useToast();
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -82,7 +83,7 @@ export default function ExpensesReportPage() {
 
   const expenseForm = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: { date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "" },
+    defaultValues: { date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "", customerName: "" },
   });
   
   const handleOpenExpenseDialog = (expense: Expense | null) => {
@@ -90,7 +91,7 @@ export default function ExpensesReportPage() {
     if (expense) {
       expenseForm.reset({ ...expense, date: new Date(expense.date) });
     } else {
-      expenseForm.reset({ date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "" });
+      expenseForm.reset({ date: new Date(), description: "", amount: 0, paymentOrder: "", supplierName: "", customerName: "" });
     }
     setIsExpenseDialogOpen(true);
   };
@@ -127,6 +128,7 @@ export default function ExpensesReportPage() {
       const searchMatch = 
         e.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (e.supplierName && e.supplierName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (e.customerName && e.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (e.paymentOrder && e.paymentOrder.toLowerCase().includes(searchTerm.toLowerCase()));
       
       let dateMatch = true;
@@ -144,7 +146,7 @@ export default function ExpensesReportPage() {
   const totalExpenses = useMemo(() => filteredExpenses.reduce((acc, e) => acc + e.amount, 0), [filteredExpenses]);
 
   const handleExport = () => {
-    const headers = ["التاريخ", "الوصف", "المورد", "أمر الصرف", "المبلغ"];
+    const headers = ["التاريخ", "الوصف", "المورد", "العميل", "أمر الصرف", "المبلغ"];
     const escapeCSV = (str: any) => {
       if (str === null || str === undefined) return "";
       const string = String(str);
@@ -155,6 +157,7 @@ export default function ExpensesReportPage() {
       format(e.date, 'yyyy-MM-dd'),
       escapeCSV(e.description),
       escapeCSV(e.supplierName),
+      escapeCSV(e.customerName),
       escapeCSV(e.paymentOrder),
       e.amount
     ].join(','));
@@ -216,7 +219,7 @@ export default function ExpensesReportPage() {
               <div className="flex flex-col md:flex-row gap-2 mt-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="بحث بالوصف، المورد أو أمر الصرف..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                    <Input placeholder="بحث بالوصف، المورد، العميل أو أمر الصرف..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
                   </div>
                   <div className="flex flex-col md:flex-row gap-2">
                       <Popover>
@@ -247,13 +250,14 @@ export default function ExpensesReportPage() {
           <CardContent>
               <div className="relative w-full overflow-auto">
                   <Table className="[&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                      <TableHeader><TableRow><TableHead>التاريخ</TableHead><TableHead>الوصف</TableHead><TableHead>المورد</TableHead><TableHead>أمر الصرف</TableHead><TableHead>المبلغ</TableHead><TableHead>إجراء</TableHead></TableRow></TableHeader>
+                      <TableHeader><TableRow><TableHead>التاريخ</TableHead><TableHead>الوصف</TableHead><TableHead>المورد</TableHead><TableHead>العميل</TableHead><TableHead>أمر الصرف</TableHead><TableHead>المبلغ</TableHead><TableHead>إجراء</TableHead></TableRow></TableHeader>
                       <TableBody>
                         {filteredExpenses.length > 0 ? (filteredExpenses.map(e => (
                           <TableRow key={e.id}>
                             <TableCell>{format(e.date, 'yyyy-MM-dd')}</TableCell>
                             <TableCell>{e.description}</TableCell>
                             <TableCell>{e.supplierName || '-'}</TableCell>
+                            <TableCell>{e.customerName || '-'}</TableCell>
                             <TableCell>{e.paymentOrder || '-'}</TableCell>
                             <TableCell className="text-destructive font-medium">{e.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                             <TableCell>
@@ -273,7 +277,7 @@ export default function ExpensesReportPage() {
                             </TableCell>
                           </TableRow>
                         ))) : (
-                          <TableRow><TableCell colSpan={6} className="h-24 text-center">لا توجد مصروفات للفترة المحددة.</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={7} className="h-24 text-center">لا توجد مصروفات للفترة المحددة.</TableCell></TableRow>
                         )}
                       </TableBody>
                   </Table>
@@ -306,7 +310,10 @@ export default function ExpensesReportPage() {
                 <FormItem><FormLabel>أمر الصرف (اختياري)</FormLabel><FormControl><Input placeholder="رقم أمر الصرف" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={expenseForm.control} name="supplierName" render={({ field }) => (
-                <FormItem><FormLabel>خصم من ربح المورد (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر موردًا لخصم المصروف من ربحه" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد مورد)</SelectItem>{supplierNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+                <FormItem><FormLabel>خصم من ربح المورد (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر موردًا" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد مورد)</SelectItem>{supplierNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
+              )} />
+              <FormField control={expenseForm.control} name="customerName" render={({ field }) => (
+                <FormItem><FormLabel>خصم من ربح العميل (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر عميلاً" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد عميل)</SelectItem>{customerNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
               )} />
               <FormField control={expenseForm.control} name="amount" render={({ field }) => (
                 <FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
