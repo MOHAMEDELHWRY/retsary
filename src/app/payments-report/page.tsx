@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -172,10 +173,10 @@ export default function PaymentsReportPage() {
   const filteredPayments = useMemo(() => {
     return supplierPayments.filter(p => {
       const searchMatch =
-        p.fromEntity.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.toEntity.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.responsiblePerson.toLowerCase().includes(searchTerm.toLowerCase());
+        (p.fromEntity || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.toEntity || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.reason || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.responsiblePerson || '').toLowerCase().includes(searchTerm.toLowerCase());
       
       const classificationMatch = filterClassification === 'all' || p.classification === filterClassification;
 
