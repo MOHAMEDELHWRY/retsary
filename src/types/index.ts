@@ -5,6 +5,7 @@
 
 
 
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -29,9 +30,11 @@ export type Transaction = {
   
   amountPaidToFactory: number;
   paidBy?: string; // من قام بالدفع للمصنع
+  datePaidToFactory?: Date; // تاريخ الدفع للمصنع
 
   amountReceivedFromSupplier: number;
   receivedBy?: string; // من استلم المبلغ من المورد
+  dateReceivedFromSupplier?: Date; // تاريخ الاستلام من المورد
   
   notes?: string; // ملاحظات
   
@@ -161,6 +164,7 @@ export type SupplierPayment = {
   destinationBank?: string;
   reason: string;
   responsiblePerson: string;
+  customerName?: string;
 };
 
 export type CustomerPayment = {
