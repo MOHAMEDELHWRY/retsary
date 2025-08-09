@@ -123,40 +123,12 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   
   const supplierNames = useMemo(() => {
-    const allNames = new Set<string>();
-    suppliers.forEach(s => allNames.add(s.name));
-    transactions.forEach(t => allNames.add(t.supplierName));
-    expenses.forEach(e => e.supplierName && allNames.add(e.supplierName));
-    balanceTransfers.forEach(t => {
-      allNames.add(t.fromSupplier);
-      allNames.add(t.toSupplier);
-    });
-    supplierPayments.forEach(p => allNames.add(p.supplierName));
-    customerPayments.forEach(p => allNames.add(p.supplierName));
-    customerSales.forEach(s => allNames.add(s.supplierName));
-    
-    return Array.from(allNames)
-      .map(name => name.trim())
-      .filter(name => name) // Remove empty strings
-      .filter((name, index, self) => self.indexOf(name) === index) // Unique
-      .sort((a, b) => a.localeCompare(b));
-  }, [suppliers, transactions, expenses, balanceTransfers, supplierPayments, customerPayments, customerSales]);
+    return suppliers.map(s => s.name).sort((a, b) => a.localeCompare(b));
+  }, [suppliers]);
   
   const customerNames = useMemo(() => {
-    const allNames = new Set<string>();
-    customers.forEach(c => allNames.add(c.name));
-    transactions.forEach(t => t.customerName && allNames.add(t.customerName));
-    expenses.forEach(e => e.customerName && allNames.add(e.customerName));
-    supplierPayments.forEach(p => p.customerName && allNames.add(p.customerName));
-    customerPayments.forEach(p => allNames.add(p.customerName));
-    customerSales.forEach(s => allNames.add(s.customerName));
-
-    return Array.from(allNames)
-      .map(name => name.trim())
-      .filter(name => name) // Remove empty strings
-      .filter((name, index, self) => self.indexOf(name) === index) // Unique
-      .sort((a, b) => a.localeCompare(b));
-  }, [customers, transactions, expenses, supplierPayments, customerPayments, customerSales]);
+    return customers.map(c => c.name).sort((a, b) => a.localeCompare(b));
+  }, [customers]);
 
   const getCustomerBalance = (customerName: string): CustomerBalance => {
     const customerTransactions = transactions.filter(
