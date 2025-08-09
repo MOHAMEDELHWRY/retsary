@@ -124,23 +124,23 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   
   const supplierNames = useMemo(() => {
     const allNames = new Set<string>();
-    transactions.forEach(t => allNames.add(t.supplierName));
-    suppliers.forEach(s => allNames.add(s.name));
-    expenses.forEach(e => { if (e.supplierName) allNames.add(e.supplierName) });
+    transactions.forEach(t => allNames.add(t.supplierName.trim()));
+    suppliers.forEach(s => allNames.add(s.name.trim()));
+    expenses.forEach(e => { if (e.supplierName) allNames.add(e.supplierName.trim()) });
     balanceTransfers.forEach(t => {
-      allNames.add(t.fromSupplier);
-      allNames.add(t.toSupplier);
+      allNames.add(t.fromSupplier.trim());
+      allNames.add(t.toSupplier.trim());
     });
-    supplierPayments.forEach(p => allNames.add(p.supplierName));
+    supplierPayments.forEach(p => allNames.add(p.supplierName.trim()));
     return Array.from(allNames).sort((a,b) => a.localeCompare(b));
   }, [transactions, suppliers, expenses, balanceTransfers, supplierPayments]);
 
   const customerNames = useMemo(() => {
     const allNames = new Set<string>();
-    transactions.forEach(t => { if(t.customerName) allNames.add(t.customerName) });
-    customers.forEach(c => allNames.add(c.name));
-    customerPayments.forEach(p => allNames.add(p.customerName));
-    customerSales.forEach(s => allNames.add(s.customerName));
+    transactions.forEach(t => { if(t.customerName) allNames.add(t.customerName.trim()) });
+    customers.forEach(c => allNames.add(c.name.trim()));
+    customerPayments.forEach(p => allNames.add(p.customerName.trim()));
+    customerSales.forEach(s => allNames.add(s.customerName.trim()));
     return Array.from(allNames).sort((a, b) => a.localeCompare(b));
   }, [transactions, customers, customerPayments, customerSales]);
 
