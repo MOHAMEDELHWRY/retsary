@@ -124,23 +124,40 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   
   const supplierNames = useMemo(() => {
     const allNames = new Set<string>();
-    transactions.forEach(t => allNames.add(t.supplierName.trim()));
-    suppliers.forEach(s => allNames.add(s.name.trim()));
-    expenses.forEach(e => { if (e.supplierName) allNames.add(e.supplierName.trim()) });
+    
+    // Helper function to safely add a name to the set
+    const addName = (name: any) => {
+      if (typeof name === 'string' && name.trim()) {
+        allNames.add(name.trim());
+      }
+    };
+  
+    transactions.forEach(t => addName(t.supplierName));
+    suppliers.forEach(s => addName(s.name));
+    expenses.forEach(e => addName(e.supplierName));
     balanceTransfers.forEach(t => {
-      allNames.add(t.fromSupplier.trim());
-      allNames.add(t.toSupplier.trim());
+      addName(t.fromSupplier);
+      addName(t.toSupplier);
     });
-    supplierPayments.forEach(p => allNames.add(p.supplierName.trim()));
-    return Array.from(allNames).sort((a,b) => a.localeCompare(b));
+    supplierPayments.forEach(p => addName(p.supplierName));
+    
+    return Array.from(allNames).sort((a, b) => a.localeCompare(b));
   }, [transactions, suppliers, expenses, balanceTransfers, supplierPayments]);
-
+  
   const customerNames = useMemo(() => {
     const allNames = new Set<string>();
-    transactions.forEach(t => { if(t.customerName) allNames.add(t.customerName.trim()) });
-    customers.forEach(c => allNames.add(c.name.trim()));
-    customerPayments.forEach(p => allNames.add(p.customerName.trim()));
-    customerSales.forEach(s => allNames.add(s.customerName.trim()));
+
+    const addName = (name: any) => {
+      if (typeof name === 'string' && name.trim()) {
+        allNames.add(name.trim());
+      }
+    };
+
+    transactions.forEach(t => addName(t.customerName));
+    customers.forEach(c => addName(c.name));
+    customerPayments.forEach(p => addName(p.customerName));
+    customerSales.forEach(s => addName(s.customerName));
+
     return Array.from(allNames).sort((a, b) => a.localeCompare(b));
   }, [transactions, customers, customerPayments, customerSales]);
 
