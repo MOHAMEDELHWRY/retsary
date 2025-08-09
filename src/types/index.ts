@@ -3,6 +3,7 @@
 
 
 
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -144,6 +145,7 @@ export type SupplierPayment = {
   date: Date;
   amount: number;
   supplierName: string;
+  customerName?: string; // اسم العميل (اختياري)
   method: 'نقدي' | 'بنكي';
   classification: 'دفعة من رصيد المبيعات' | 'سحب أرباح للمورد' | 'سداد للمصنع عن المورد' | 'استعادة مبلغ كتسوية' | 'سحب مبلغ كتسوية';
   sourceBank?: string;

@@ -590,8 +590,12 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     let documentInfo: { documentUrl?: string; documentPath?: string } = {};
 
     try {
-      const initialPaymentData = { ...paymentData, date: Timestamp.fromDate(paymentData.date), status: file ? 'uploading' : 'completed' };
-      await setDoc(paymentDocRef, initialPaymentData);
+      const docData = cleanDataForFirebase({
+          ...paymentData,
+          date: Timestamp.fromDate(paymentData.date),
+          status: file ? 'uploading' : 'completed'
+      });
+      await setDoc(paymentDocRef, docData);
 
       if (file) {
         try {
@@ -605,7 +609,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       }
       
       const finalPaymentData = { ...paymentData, ...documentInfo, date: Timestamp.fromDate(paymentData.date) };
-      await setDoc(paymentDocRef, finalPaymentData);
+      await updateDoc(paymentDocRef, cleanDataForFirebase(finalPaymentData));
 
       const newPayment = { ...paymentData, ...documentInfo, id: paymentId } as SupplierPayment;
       setSupplierPayments(prev => [newPayment, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
@@ -633,7 +637,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           updatedData.documentPath = undefined;
       }
       const finalDataToUpdate = { ...updatedData, date: Timestamp.fromDate(paymentData.date) };
-      await updateDoc(paymentDocRef, finalDataToUpdate);
+      await updateDoc(paymentDocRef, cleanDataForFirebase(finalDataToUpdate));
       const updatedLocalPayment = { ...existingPayment, ...finalDataToUpdate, date: paymentData.date };
       setSupplierPayments(prev => prev.map(p => p.id === existingPayment.id ? updatedLocalPayment : p).sort((a,b) => b.date.getTime() - a.date.getTime()));
     } catch(error) {
