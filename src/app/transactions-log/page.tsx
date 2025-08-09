@@ -689,7 +689,7 @@ function TransactionsLogPageContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky right-0 bg-card z-20">م</TableHead>
+                  <TableHead className="sticky right-0 bg-card z-30">م</TableHead>
                   <TableHead>رقم العملية</TableHead>
                   <TableHead>اسم العميل</TableHead>
                   <TableHead>التاريخ</TableHead>
@@ -705,7 +705,7 @@ function TransactionsLogPageContent() {
                   <TableHead>إجمالي البيع</TableHead>
                   <TableHead>صافي الربح</TableHead>
                   <TableHead>مدفوع للمصنع</TableHead>
-                  <TableHead>الدافع للمصنع</TableHead>
+                  <TableHead>القائم بالدفع للمصنع</TableHead>
                   <TableHead>ت. دفع المصنع</TableHead>
                   <TableHead>طريقة دفع المصنع</TableHead>
                   <TableHead>المبلغ المستلم</TableHead>
@@ -956,7 +956,7 @@ function TransactionsLogPageContent() {
                           <div className="p-3 border rounded-lg space-y-3">
                             <h4 className="font-medium text-sm">دفعة من المورد</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ المستلم</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                              <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                               <FormField control={form.control} name="receivedBy" render={({ field }) => (
                                 <FormItem><FormLabel>إلى (المستلم)</FormLabel>
                                   <Select onValueChange={field.onChange} value={field.value}>
@@ -1333,6 +1333,7 @@ export default function TransactionsLogPage() {
     </React.Suspense>
   );
 }
+
 
 
 
