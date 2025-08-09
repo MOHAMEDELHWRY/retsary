@@ -144,8 +144,8 @@ export type SupplierPayment = {
   id: string;
   date: Date;
   amount: number;
-  supplierName: string;
-  customerName?: string; // اسم العميل (اختياري)
+  fromEntity: string;
+  toEntity: string;
   method: 'نقدي' | 'بنكي';
   classification: 'دفعة من رصيد المبيعات' | 'سحب أرباح للمورد' | 'سداد للمصنع عن المورد' | 'استعادة مبلغ كتسوية' | 'سحب مبلغ كتسوية';
   sourceBank?: string;

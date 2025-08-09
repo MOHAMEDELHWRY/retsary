@@ -61,8 +61,8 @@ import { Textarea } from '@/components/ui/textarea';
 
 const paymentSchema = z.object({
   date: z.date({ required_error: "التاريخ مطلوب." }),
-  supplierName: z.string().min(1, "اسم المورد مطلوب."),
-  customerName: z.string().optional(),
+  fromEntity: z.string().min(1, "يجب تحديد الطرف الدافع."),
+  toEntity: z.string().min(1, "يجب تحديد الطرف المستلم."),
   amount: z.coerce.number().positive("المبلغ يجب أن يكون أكبر من صفر."),
   method: z.enum(['نقدي', 'بنكي'], { required_error: "طريقة الدفع مطلوبة." }),
   classification: z.enum(['دفعة من رصيد المبيعات', 'سحب أرباح للمورد', 'سداد للمصنع عن المورد', 'استعادة مبلغ كتسوية', 'سحب مبلغ كتسوية'], { required_error: "تصنيف الدفعة مطلوب." }),
@@ -70,7 +70,11 @@ const paymentSchema = z.object({
   responsiblePerson: z.string().min(1, "اسم المسؤول مطلوب."),
   sourceBank: z.string().optional(),
   destinationBank: z.string().optional(),
+}).refine(data => data.fromEntity !== data.toEntity, {
+    message: "لا يمكن أن يكون الدافع والمستلم نفس الشخص.",
+    path: ["toEntity"],
 });
+
 
 type PaymentFormValues = z.infer<typeof paymentSchema>;
 
@@ -86,12 +90,16 @@ export default function PaymentsReportPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
 
+  const allEntities = useMemo(() => {
+    return Array.from(new Set([...supplierNames, ...customerNames])).sort();
+  }, [supplierNames, customerNames]);
+
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
       date: new Date(),
-      supplierName: '',
-      customerName: '',
+      fromEntity: '',
+      toEntity: '',
       amount: 0,
       method: 'نقدي',
       classification: 'دفعة من رصيد المبيعات',
@@ -113,8 +121,8 @@ export default function PaymentsReportPage() {
     } else {
       form.reset({
         date: new Date(),
-        supplierName: '',
-        customerName: '',
+        fromEntity: '',
+        toEntity: '',
         amount: 0,
         method: 'نقدي',
         classification: 'دفعة من رصيد المبيعات',
@@ -164,8 +172,8 @@ export default function PaymentsReportPage() {
   const filteredPayments = useMemo(() => {
     return supplierPayments.filter(p => {
       const searchMatch =
-        p.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.customerName && p.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        p.fromEntity.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.toEntity.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.responsiblePerson.toLowerCase().includes(searchTerm.toLowerCase());
       
@@ -197,7 +205,7 @@ export default function PaymentsReportPage() {
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-primary flex items-center gap-2">
           <Landmark className="h-8 w-8" />
-          سجل دفعات الموردين
+          سجل المدفوعات
         </h1>
         <Button onClick={() => handleOpenDialog(null)}>
           <Plus className="ml-2 h-4 w-4" />
@@ -208,11 +216,11 @@ export default function PaymentsReportPage() {
       <Card>
         <CardHeader>
           <CardTitle>سجل الدفعات</CardTitle>
-          <CardDescription>عرض وإدارة جميع الدفعات للموردين.</CardDescription>
+          <CardDescription>عرض وإدارة جميع الدفعات والتحويلات المالية.</CardDescription>
             <div className="flex flex-col md:flex-row gap-2 mt-4">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="بحث باسم المورد، العميل، السبب أو المسؤول..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                <Input placeholder="بحث باسم الدافع، المستلم، السبب أو المسؤول..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
               </div>
               <Select value={filterClassification} onValueChange={setFilterClassification}>
                 <SelectTrigger className="w-full md:w-[250px]">
@@ -231,8 +239,8 @@ export default function PaymentsReportPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>التاريخ</TableHead>
-                  <TableHead>المورد</TableHead>
-                  <TableHead>العميل</TableHead>
+                  <TableHead>من (الدافع)</TableHead>
+                  <TableHead>إلى (المستلم)</TableHead>
                   <TableHead>المبلغ</TableHead>
                   <TableHead>الطريقة</TableHead>
                   <TableHead>التصنيف</TableHead>
@@ -253,8 +261,8 @@ export default function PaymentsReportPage() {
                   filteredPayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell>{format(payment.date, 'yyyy-MM-dd')}</TableCell>
-                      <TableCell className="font-medium">{payment.supplierName}</TableCell>
-                      <TableCell>{payment.customerName || '-'}</TableCell>
+                      <TableCell className="font-medium">{payment.fromEntity}</TableCell>
+                      <TableCell className="font-medium">{payment.toEntity}</TableCell>
                       <TableCell className="font-bold text-primary">{payment.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>{payment.method}</TableCell>
                       <TableCell>{payment.classification}</TableCell>
@@ -362,13 +370,13 @@ export default function PaymentsReportPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="supplierName"
+                  name="fromEntity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>المورد</FormLabel>
+                      <FormLabel>من (الدافع)</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="اختر المورد" /></SelectTrigger></FormControl>
-                        <SelectContent>{supplierNames.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectContent>
+                        <FormControl><SelectTrigger><SelectValue placeholder="اختر الدافع" /></SelectTrigger></FormControl>
+                        <SelectContent>{allEntities.map(name => <SelectItem key={`from-${name}`} value={name}>{name}</SelectItem>)}</SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
@@ -376,16 +384,13 @@ export default function PaymentsReportPage() {
                 />
                  <FormField
                   control={form.control}
-                  name="customerName"
+                  name="toEntity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>العميل (اختياري)</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(value === '__none__' ? '' : value)} value={field.value || '__none__'}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="اختر العميل" /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">لا يوجد عميل</SelectItem>
-                          {customerNames.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)}
-                        </SelectContent>
+                      <FormLabel>إلى (المستلم)</FormLabel>
+                       <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
+                        <SelectContent>{allEntities.map(name => <SelectItem key={`to-${name}`} value={name}>{name}</SelectItem>)}</SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
