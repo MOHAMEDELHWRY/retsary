@@ -1068,7 +1068,7 @@ export default function AccountingDashboard() {
                             name="paidBy"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>القائم بالدفع</FormLabel>
+                                <FormLabel>القائم بالدفع للمصنع</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value}>
                                   <FormControl>
                                     <SelectTrigger>
