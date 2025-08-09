@@ -123,43 +123,12 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   
   const supplierNames = useMemo(() => {
-    const allNames = new Set<string>();
-    
-    // Helper function to safely add a name to the set
-    const addName = (name: any) => {
-      if (typeof name === 'string' && name.trim()) {
-        allNames.add(name.trim());
-      }
-    };
-  
-    transactions.forEach(t => addName(t.supplierName));
-    suppliers.forEach(s => addName(s.name));
-    expenses.forEach(e => addName(e.supplierName));
-    balanceTransfers.forEach(t => {
-      addName(t.fromSupplier);
-      addName(t.toSupplier);
-    });
-    supplierPayments.forEach(p => addName(p.supplierName));
-    
-    return Array.from(allNames).sort((a, b) => a.localeCompare(b));
-  }, [transactions, suppliers, expenses, balanceTransfers, supplierPayments]);
+    return suppliers.map(s => s.name).sort((a, b) => a.localeCompare(b));
+  }, [suppliers]);
   
   const customerNames = useMemo(() => {
-    const allNames = new Set<string>();
-
-    const addName = (name: any) => {
-      if (typeof name === 'string' && name.trim()) {
-        allNames.add(name.trim());
-      }
-    };
-
-    transactions.forEach(t => addName(t.customerName));
-    customers.forEach(c => addName(c.name));
-    customerPayments.forEach(p => addName(p.customerName));
-    customerSales.forEach(s => addName(s.customerName));
-
-    return Array.from(allNames).sort((a, b) => a.localeCompare(b));
-  }, [transactions, customers, customerPayments, customerSales]);
+    return customers.map(c => c.name).sort((a, b) => a.localeCompare(b));
+  }, [customers]);
 
   const getCustomerBalance = (customerName: string): CustomerBalance => {
     const customerTransactions = transactions.filter(
