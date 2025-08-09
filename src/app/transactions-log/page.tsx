@@ -82,6 +82,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { EditableDropdown } from '@/components/ui/editable-dropdown';
 import { type PerformanceAnalysisOutput } from '@/ai/flows/analyze-performance-flow';
 import { descriptionOptions, categoryOptions, varietyOptions } from '@/data/transaction-data';
+import { Textarea } from '@/components/ui/textarea';
 
 const transactionSchema = z.object({
   operationNumber: z.string().optional(),
@@ -103,6 +104,7 @@ const transactionSchema = z.object({
   amountPaidToFactory: z.coerce.number().min(0, 'المبلغ المدفوع يجب أن يكون موجبًا.').default(0),
   paidBy: z.string().optional(), //  من قام بالدفع للمصنع
   amountReceivedFromSupplier: z.coerce.number().min(0, 'المبلغ المستلم يجب أن يكون موجبًا.').default(0),
+  notes: z.string().optional(),
   
   paymentMethodToFactory: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
   paymentMethodFromSupplier: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
@@ -235,6 +237,7 @@ export default function TransactionsLogPage() {
       amountReceivedFromCustomer: 0,
       dateReceivedFromCustomer: undefined,
       paymentMethodFromCustomer: undefined,
+      notes: "",
     },
   });
   const { watch, setValue } = form;
@@ -279,6 +282,7 @@ export default function TransactionsLogPage() {
         amountReceivedFromCustomer: transaction.amountReceivedFromCustomer || 0,
         dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
         paymentMethodFromCustomer: transaction.paymentMethodFromCustomer || undefined,
+        notes: transaction.notes || "",
       });
        if (transaction.governorate) setAvailableCities(cities[transaction.governorate] || []);
     } else {
@@ -313,6 +317,7 @@ export default function TransactionsLogPage() {
         amountReceivedFromCustomer: 0,
         dateReceivedFromCustomer: undefined,
         paymentMethodFromCustomer: undefined,
+        notes: "",
       });
     }
     setIsDialogOpen(true);
@@ -676,6 +681,7 @@ export default function TransactionsLogPage() {
                   <TableHead>هاتف الناقل</TableHead>
                   <TableHead>تاريخ الخروج</TableHead>
                   <TableHead>المرفقات</TableHead>
+                  <TableHead>ملاحظات</TableHead>
                   <TableHead>الإجراءات</TableHead>
                 </TableRow>
               </TableHeader>
@@ -734,6 +740,7 @@ export default function TransactionsLogPage() {
                           </button>
                         ) : ('-')}
                       </TableCell>
+                      <TableCell className="max-w-[150px] truncate" title={t.notes}>{t.notes || '-'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(t)}><Pencil className="h-4 w-4" /></Button>
@@ -944,6 +951,22 @@ export default function TransactionsLogPage() {
                             <FormItem className="flex flex-col"><FormLabel>تاريخ الاستحقاق (اختياري)</FormLabel><Popover modal={false} open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date); setIsDueDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                           )} />
                         </div>
+                        <FormField
+                          control={form.control}
+                          name="notes"
+                          render={({ field }) => (
+                            <FormItem className="mt-4">
+                              <FormLabel>ملاحظات (اختياري)</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="أضف أي ملاحظات أو تفاصيل إضافية هنا..."
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </AccordionContent>
                     </AccordionItem>
                     <AccordionItem value="item-6">

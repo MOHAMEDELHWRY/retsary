@@ -1,5 +1,6 @@
 
 
+
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
@@ -24,6 +25,7 @@ export type Transaction = {
   amountPaidToFactory: number;
   amountReceivedFromSupplier: number;
   paidBy?: string; //  من قام بالدفع للمصنع
+  notes?: string; // ملاحظات
   
   // طرق الدفع الجديدة
   paymentMethodToFactory?: 'نقدي' | 'تحويل بنكي' | 'إيداع'; // طريقة دفع المبلغ للمصنع
