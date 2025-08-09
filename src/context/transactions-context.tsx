@@ -148,15 +148,26 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     const customerSalesFiltered = customerSales.filter(s => s.customerName === customerName);
     
     const totalSales = customerSalesFiltered.filter(s => s.status !== 'رصيد دائن' && s.status !== 'دفعة مقدمة').reduce((sum, sale) => sum + sale.amount, 0);
-    const totalPayments = customerSalesFiltered.reduce((sum, sale) => sum + sale.paidAmount, 0);
-    const balance = totalSales - totalPayments;
+    
+    // Total payments includes paid amounts on regular sales and credit/advance payments.
+    const totalPayments = customerSalesFiltered.reduce((sum, sale) => {
+      if (sale.status === 'رصيد دائن' || sale.status === 'دفعة مقدمة') {
+        return sum + sale.amount; // These represent payments from the customer
+      }
+      return sum + sale.paidAmount;
+    }, 0);
+
+    const netSales = customerSalesFiltered.filter(s => s.status !== 'رصيد دائن' && s.status !== 'دفعة مقدمة').reduce((sum, s) => sum + s.amount, 0);
+    const netPayments = customerSalesFiltered.reduce((sum, s) => sum + s.paidAmount, 0);
+    
+    const balance = netSales - netPayments;
     
     return {
       customerName,
-      totalSales,
-      totalPayments,
+      totalSales: netSales,
+      totalPayments: netPayments,
       balance,
-      balanceType: balance > 0 ? 'debtor' : 'creditor'
+      balanceType: balance > 0 ? 'debtor' : balance < 0 ? 'creditor' : 'balanced'
     };
   };
 
