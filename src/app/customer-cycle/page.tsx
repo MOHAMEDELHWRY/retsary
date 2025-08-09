@@ -138,7 +138,7 @@ export default function CustomerCyclePage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Button asChild variant="outline" size="sm">
-                          <Link href={`/customer-sales?customer=${encodeURIComponent(report.customerName)}`}>
+                          <Link href={`/transactions-log?customer=${encodeURIComponent(report.customerName)}`}>
                             عرض التفاصيل
                           </Link>
                         </Button>

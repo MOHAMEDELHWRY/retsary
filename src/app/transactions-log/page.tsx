@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   DollarSign,
   Download,
@@ -125,7 +126,10 @@ const transactionSchema = z.object({
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
 
-export default function TransactionsLogPage() {
+function TransactionsLogPageContent() {
+  const searchParams = useSearchParams();
+  const customerQuery = searchParams.get('customer');
+
   const { 
     transactions, addTransaction, updateTransaction, deleteTransaction, 
     loading,
@@ -135,7 +139,7 @@ export default function TransactionsLogPage() {
   } = useTransactions();
   const { toast } = useToast();
 
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(customerQuery || '');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [dateType, setDateType] = useState<'operation' | 'execution'>('operation');
@@ -170,6 +174,12 @@ export default function TransactionsLogPage() {
   const [isDateReceivedPopoverOpen, setIsDateReceivedPopoverOpen] = useState(false);
   const [isStartDatePopoverOpen, setIsStartDatePopoverOpen] = useState(false);
   const [isEndDatePopoverOpen, setIsEndDatePopoverOpen] = useState(false);
+
+  useEffect(() => {
+    if (customerQuery) {
+      setSearchTerm(customerQuery);
+    }
+  }, [customerQuery]);
 
   const setDateRangePreset = (preset: 'today' | 'week' | 'month' | 'all') => {
     const today = new Date();
@@ -1255,5 +1265,13 @@ export default function TransactionsLogPage() {
             </DialogContent>
           </Dialog>
     </div>
+  );
+}
+
+export default function TransactionsLogPage() {
+  return (
+    <React.Suspense fallback={<div>Loading...</div>}>
+      <TransactionsLogPageContent />
+    </React.Suspense>
   );
 }
