@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -696,7 +697,7 @@ export default function TransactionsLogPage() {
                       <TableCell>{t.supplierName}</TableCell>
                       <TableCell>{t.description}</TableCell>
                       <TableCell>{t.governorate || '-'}{t.city ? ` - ${t.city}` : ''}</TableCell>
-                      <TableCell>{t.quantity} طن{t.variety ? ` / ${t.variety}` : ''}</TableCell>
+                      <TableCell>{t.quantity} طن {t.variety ? `/ ${t.variety}` : ''} {t.category ? `/ ${t.category}` : ''}</TableCell>
                       <TableCell className="text-orange-600 font-medium">{(t.actualQuantityDeducted || 0).toFixed(2)} طن</TableCell>
                       <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
                       <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
