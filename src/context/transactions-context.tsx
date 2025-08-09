@@ -212,6 +212,9 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
           const executionDate = data.executionDate ? (data.executionDate instanceof Timestamp ? data.executionDate.toDate() : new Date(data.executionDate)) : undefined;
           const dueDate = data.dueDate ? (data.dueDate instanceof Timestamp ? data.dueDate.toDate() : new Date(data.dueDate)) : undefined;
+          const transactionDate = data.transactionDate ? (data.transactionDate instanceof Timestamp ? data.transactionDate.toDate() : new Date(data.transactionDate)) : undefined;
+          const departureDate = data.departureDate ? (data.departureDate instanceof Timestamp ? data.departureDate.toDate() : new Date(data.departureDate)) : undefined;
+          const dateReceivedFromCustomer = data.dateReceivedFromCustomer ? (data.dateReceivedFromCustomer instanceof Timestamp ? data.dateReceivedFromCustomer.toDate() : new Date(data.dateReceivedFromCustomer)) : undefined;
           
           return {
             ...data,
@@ -219,6 +222,9 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
             date,
             executionDate,
             dueDate,
+            transactionDate,
+            departureDate,
+            dateReceivedFromCustomer,
           } as Transaction;
         });
         setTransactions(fetchedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
@@ -331,8 +337,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       const docData = cleanDataForFirebase({
         ...transaction,
         date: Timestamp.fromDate(transaction.date),
-        executionDate: transaction.executionDate ? Timestamp.fromDate(transaction.executionDate) : null,
-        dueDate: transaction.dueDate ? Timestamp.fromDate(transaction.dueDate) : null,
+        executionDate: transaction.executionDate ? Timestamp.fromDate(transaction.executionDate) : undefined,
+        dueDate: transaction.dueDate ? Timestamp.fromDate(transaction.dueDate) : undefined,
       });
       const docRef = await addDoc(transactionsCollectionRef, docData);
       const newTransaction = { ...transaction, id: docRef.id };
@@ -352,8 +358,8 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       const docData = cleanDataForFirebase({
         ...dataToUpdate,
         date: Timestamp.fromDate(updatedTransaction.date),
-        executionDate: updatedTransaction.executionDate ? Timestamp.fromDate(updatedTransaction.executionDate) : null,
-        dueDate: updatedTransaction.dueDate ? Timestamp.fromDate(updatedTransaction.dueDate) : null,
+        executionDate: updatedTransaction.executionDate ? Timestamp.fromDate(updatedTransaction.executionDate) : undefined,
+        dueDate: updatedTransaction.dueDate ? Timestamp.fromDate(updatedTransaction.dueDate) : undefined,
       });
       await updateDoc(transactionDoc, docData);
       setTransactions(prev => 
@@ -705,7 +711,7 @@ const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
     const fetchedSales = salesSnapshot.docs.map(doc => {
         const data = doc.data();
         const saleDate = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
-        const paymentDate = data.paymentDate instanceof Timestamp ? data.paymentDate.toDate() : undefined;
+        const paymentDate = data.paymentDate ? (data.paymentDate instanceof Timestamp ? data.paymentDate.toDate() : new Date(data.paymentDate)) : undefined;
         return { ...data, id: doc.id, date: saleDate, paymentDate } as CustomerSale;
     });
     setCustomerSales(fetchedSales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -715,7 +721,7 @@ const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
   const updateCustomerPayment = async (updatedPayment: CustomerPayment) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
-      const docData = cleanDataForFirebase({ ...updatedPayment, date: Timestamp.fromDate(updatedPayment.date), confirmedDate: updatedPayment.confirmedDate ? Timestamp.fromDate(updatedPayment.confirmedDate) : null });
+      const docData = cleanDataForFirebase({ ...updatedPayment, date: Timestamp.fromDate(updatedPayment.date), confirmedDate: updatedPayment.confirmedDate ? Timestamp.fromDate(updatedPayment.confirmedDate) : undefined });
       await updateDoc(doc(db, 'users', currentUser.uid, 'customerPayments', updatedPayment.id), docData);
       setCustomerPayments(prev => prev.map(p => p.id === updatedPayment.id ? updatedPayment : p).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       toast({ title: "تم التحديث", description: "تم تحديث مدفوعة العميل بنجاح." });
@@ -813,7 +819,7 @@ const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
           ...dataToUpdate, 
           status: finalStatus,
           date: Timestamp.fromDate(updatedSale.date),
-          paymentDate: updatedSale.paymentDate ? Timestamp.fromDate(updatedSale.paymentDate) : null,
+          paymentDate: updatedSale.paymentDate ? Timestamp.fromDate(updatedSale.paymentDate) : undefined,
       });
 
       await updateDoc(doc(db, 'users', currentUser.uid, 'customerSales', id), docData);
