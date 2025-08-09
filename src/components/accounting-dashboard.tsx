@@ -1068,7 +1068,7 @@ export default function AccountingDashboard() {
                             name="paidBy"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>القائم بالدفع للمصنع</FormLabel>
+                                <FormLabel>الدافع (للمصنع)</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value}>
                                   <FormControl>
                                     <SelectTrigger>
@@ -1426,7 +1426,7 @@ export default function AccountingDashboard() {
                   <FormField control={expenseForm.control} name="customerName" render={({ field }) => (
                     <FormItem><FormLabel>خصم من ربح العميل (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر عميلاً" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد عميل)</SelectItem>{customerNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                   )} />
-                  <FormField control={expenseForm.control} name="amount" render={({ field }) => (
+                  <FormField control={form.control} name="amount" render={({ field }) => (
                     <FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
                   )} />
                   <DialogFooter>

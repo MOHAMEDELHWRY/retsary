@@ -682,7 +682,7 @@ function TransactionsLogPageContent() {
                   <TableHead>إجمالي البيع</TableHead>
                   <TableHead>صافي الربح</TableHead>
                   <TableHead>المدفوع للمصنع</TableHead>
-                  <TableHead>القائم بالدفع للمصنع</TableHead>
+                  <TableHead>الدافع (للمصنع)</TableHead>
                   <TableHead>طريقة دفع المصنع</TableHead>
                   <TableHead>المبلغ المستلم</TableHead>
                   <TableHead>طريقة استلام المورد</TableHead>
@@ -904,7 +904,7 @@ function TransactionsLogPageContent() {
                             name="paidBy"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>القائم بالدفع للمصنع</FormLabel>
+                                <FormLabel>الدافع (للمصنع)</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value}>
                                   <FormControl>
                                     <SelectTrigger>
