@@ -871,13 +871,16 @@ export default function AccountingDashboard() {
     totalPurchases,
     profitFromTransactions,
     totalReceivedFromSuppliers,
+  totalReceivedFromCustomers,
     totalPaidToFactory,
+    supplierCapital,
   } = useMemo(() => {
     const aggregates = transactions.reduce(
       (acc, t) => {
         acc.totalSales += t.totalSellingPrice;
         acc.totalPurchases += t.totalPurchasePrice;
         acc.totalReceivedFromSuppliers += t.amountReceivedFromSupplier;
+    acc.totalReceivedFromCustomers += t.amountReceivedFromCustomer || 0;
         acc.totalPaidToFactory += t.amountPaidToFactory;
 
         const isSold = t.totalSellingPrice > 0;
@@ -888,7 +891,7 @@ export default function AccountingDashboard() {
         }
         return acc;
       },
-      { totalSales: 0, totalPurchases: 0, remainingStockValue: 0, totalReceivedFromSuppliers: 0, totalPaidToFactory: 0, totalTaxesOnSoldItems: 0 }
+  { totalSales: 0, totalPurchases: 0, remainingStockValue: 0, totalReceivedFromSuppliers: 0, totalReceivedFromCustomers: 0, totalPaidToFactory: 0, totalTaxesOnSoldItems: 0 }
     );
 
     const costOfGoodsSold = aggregates.totalPurchases - aggregates.remainingStockValue;
@@ -898,7 +901,9 @@ export default function AccountingDashboard() {
       totalSales: aggregates.totalSales,
       totalPurchases: aggregates.totalPurchases,
       totalReceivedFromSuppliers: aggregates.totalReceivedFromSuppliers,
+  totalReceivedFromCustomers: aggregates.totalReceivedFromCustomers,
       totalPaidToFactory: aggregates.totalPaidToFactory,
+      supplierCapital: aggregates.totalReceivedFromCustomers - aggregates.totalPaidToFactory,
       profitFromTransactions: profitBeforeExpenses,
     };
   }, [transactions]);
@@ -1012,7 +1017,6 @@ export default function AccountingDashboard() {
         <div className="flex gap-2 flex-wrap justify-center">
           <Button onClick={() => handleOpenDialog(null)}><Plus className="ml-2 h-4 w-4" />إضافة عملية</Button>
           <Button variant="outline" onClick={() => handleOpenExpenseDialog(null)}><MinusCircle className="ml-2 h-4 w-4" />إضافة مصروف</Button>
-          <Button variant="outline" asChild><Link href="/customer-payments"><Wallet className="ml-2 h-4 w-4" />مدفوعات العملاء</Link></Button>
           <Button variant="outline" asChild><Link href="/inventory-report"><Package className="ml-2 h-4 w-4" />تقرير المخزون</Link></Button>
           <Button variant="outline" onClick={handleAnalyzePerformance}><Wand2 className="ml-2 h-4 w-4" />تحليل الأداء</Button>
         </div>
@@ -1171,10 +1175,19 @@ export default function AccountingDashboard() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                               <FormField control={form.control} name="receivedBy" render={({ field }) => (
-                                <FormItem><FormLabel>إلى (المستلم)</FormLabel>
+                                <FormItem>
+                                  <FormLabel>العميل (المستلم)</FormLabel>
                                   <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
-                                    <SelectContent>{allEntities.map((name) => (<SelectItem key={`receivedBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="اختر العميل" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {customerNames.map((name) => (
+                                        <SelectItem key={`receivedBy-${name}`} value={name}>{name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
                                   </Select>
                                   <FormMessage />
                                 </FormItem>
@@ -1194,10 +1207,10 @@ export default function AccountingDashboard() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                 <FormField control={form.control} name="customerPaymentReceivedBy" render={({ field }) => (
-                                  <FormItem><FormLabel>إلى (المستلم)</FormLabel>
+                                  <FormItem><FormLabel>المورد (المستلم)</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}>
-                                      <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
-                                      <SelectContent>{allEntities.map((name) => (<SelectItem key={`custPayRcvdBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
+                                      <FormControl><SelectTrigger><SelectValue placeholder="اختر المورد" /></SelectTrigger></FormControl>
+                                      <SelectContent>{supplierNames.map((name) => (<SelectItem key={`custPayRcvdBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
                                     </Select>
                                     <FormMessage />
                                   </FormItem>
@@ -1561,8 +1574,14 @@ export default function AccountingDashboard() {
                   <FormField control={expenseForm.control} name="customerName" render={({ field }) => (
                     <FormItem><FormLabel>خصم من ربح العميل (اختياري)</FormLabel><Select onValueChange={(value) => field.onChange(value === '__general__' ? '' : value)} value={field.value || '__general__'}><FormControl><SelectTrigger><SelectValue placeholder="اختر عميلاً" /></SelectTrigger></FormControl><SelectContent><SelectItem value="__general__">مصروف عام (لا يوجد عميل)</SelectItem>{customerNames.map((name) => (<SelectItem key={name} value={name}>{name}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem>
                   )} />
-                  <FormField control={form.control} name="amount" render={({ field }) => (
-                    <FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormField control={expenseForm.control} name="amount" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>المبلغ</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )} />
                   <DialogFooter>
                     <DialogClose asChild><Button type="button" variant="secondary">إلغاء</Button></DialogClose>
@@ -1574,7 +1593,19 @@ export default function AccountingDashboard() {
           </Dialog>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المستلم من الموردين</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-success">{totalReceivedFromSuppliers.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">رأس مال المورد</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {supplierCapital.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">المعادلة: المستلم من العملاء - المدفوع للمصنع</p>
+          </CardContent>
+        </Card>
+  <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المستلم من العملاء</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-success">{totalReceivedFromCustomers.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المدفوع للمصنع</CardTitle><Factory className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-primary">{totalPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المشتريات</CardTitle><ShoppingCart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{totalPurchases.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المبيعات</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>

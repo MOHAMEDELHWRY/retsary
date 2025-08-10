@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
@@ -149,11 +147,14 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     );
 
     const balance = totalSales - totalPayments;
-    let balanceType: 'debtor' | 'creditor' | 'balanced' = 'balanced';
-    if (balance > 0) {
-      balanceType = 'debtor'; // Customer owes money
-    } else if (balance < 0) {
-      balanceType = 'creditor'; // Customer has credit
+    let balanceType: 'creditor' | 'debtor' = 'debtor';
+    if (balance < 0) {
+      balanceType = 'creditor';
+    } else if (balance > 0) {
+      balanceType = 'debtor';
+    } else {
+      // balanced case, choose a default (debtor) since the type only allows two values
+      balanceType = 'debtor';
     }
 
     return {
@@ -830,7 +831,9 @@ const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
       const { id, ...dataToUpdate } = updatedSale;
-      const finalStatus = dataToUpdate.paidAmount >= dataToUpdate.amount ? 'مدفوع' : dataToUpdate.paidAmount > 0 ? 'مدفوع جزئياً' : 'معلق';
+      const finalStatus: CustomerSale['status'] = dataToUpdate.paidAmount >= dataToUpdate.amount
+        ? 'مدفوع'
+        : (dataToUpdate.paidAmount > 0 ? 'مدفوع جزئياً' : 'معلق');
       
       const docData = cleanDataForFirebase({ 
           ...dataToUpdate, 
@@ -841,7 +844,7 @@ const addCustomerPayment = async (payment: Omit<CustomerPayment, 'id'>) => {
 
       await updateDoc(doc(db, 'users', currentUser.uid, 'customerSales', id), docData);
       
-      const newUpdatedSale = { ...updatedSale, status: finalStatus };
+      const newUpdatedSale: CustomerSale = { ...updatedSale, status: finalStatus } as CustomerSale;
       setCustomerSales(prev => prev.map(s => s.id === id ? newUpdatedSale : s).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       
       toast({ title: "تم التحديث", description: "تم تحديث مبيعة العميل بنجاح." });

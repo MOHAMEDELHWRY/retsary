@@ -1,7 +1,6 @@
-'use client';
+import { redirect } from "next/navigation";
 
-// This page has been intentionally left blank as per user request to delete it.
-// It is being replaced by a filtered view in the transactions log.
-export default function CustomerSalesPage() {
-  return null;
+export default function Page() {
+  // تم إلغاء صفحة أرصدة/مبيعات العملاء القديمة — إعادة التوجيه إلى سجل العملاء
+  redirect("/customers-log");
 }

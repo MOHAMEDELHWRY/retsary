@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo } from 'react';
@@ -18,10 +17,11 @@ interface SupplierReport {
 }
 
 export default function SuppliersReportPage() {
-  const { transactions, supplierPayments } = useTransactions();
+  const { transactions, supplierPayments, suppliers } = useTransactions();
 
   const suppliersReport = useMemo<SupplierReport[]>(() => {
-    const reportMap = new Map<string, { totalPurchases: number; totalPaid: number }>();
+  const reportMap = new Map<string, { totalPurchases: number; totalPaid: number }>();
+  const supplierNameSet = new Set((suppliers || []).map((s) => s.name));
 
     // Aggregate total purchases from transactions
     transactions.forEach(transaction => {
@@ -30,11 +30,13 @@ export default function SuppliersReportPage() {
       reportMap.set(transaction.supplierName, supplierData);
     });
 
-    // Aggregate total payments to suppliers
+    // Aggregate total payments to suppliers (only if the receiver is a registered supplier)
     supplierPayments.forEach(payment => {
-      const supplierData = reportMap.get(payment.supplierName) || { totalPurchases: 0, totalPaid: 0 };
+      const supplierKey = payment.toEntity;
+      if (!supplierNameSet.has(supplierKey)) return; // ignore payments directed to non-suppliers (e.g., customers)
+      const supplierData = reportMap.get(supplierKey) || { totalPurchases: 0, totalPaid: 0 };
       supplierData.totalPaid += payment.amount;
-      reportMap.set(payment.supplierName, supplierData);
+      reportMap.set(supplierKey, supplierData);
     });
 
     // Generate the final report
@@ -55,7 +57,7 @@ export default function SuppliersReportPage() {
         balanceType: balanceType,
       };
     }).sort((a, b) => a.supplierName.localeCompare(b.supplierName));
-  }, [transactions, supplierPayments]);
+  }, [transactions, supplierPayments, suppliers]);
 
   const totalCreditorAmount = suppliersReport.filter(s => s.balanceType === 'creditor').reduce((sum, s) => sum + s.balance, 0);
   const totalDebtorAmount = suppliersReport.filter(s => s.balanceType === 'debtor').reduce((sum, s) => sum + s.balance, 0);

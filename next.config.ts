@@ -8,6 +8,30 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  async redirects() {
+    return [
+      {
+        source: '/customer-cycle',
+        destination: '/customers-log',
+        permanent: true,
+      },
+      {
+        source: '/customer-sales',
+        destination: '/customers-log',
+        permanent: true,
+      },
+      {
+        source: '/customer-sales-report',
+        destination: '/customers-log',
+        permanent: true,
+      },
+      {
+        source: '/customer-sales-report/:path*',
+        destination: '/customers-log',
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

@@ -1,9 +1,8 @@
-
 "use client";
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BookUser, LineChart, Factory, Users, SidebarClose, LogOut, Wallet, ArrowRightLeft, Landmark, Users2, CreditCard, Receipt, Package, ListChecks } from 'lucide-react';
+import { BookUser, LineChart, Factory, Users, SidebarClose, LogOut, Wallet, ArrowRightLeft, Landmark, CreditCard, Receipt, Package, ListChecks, Activity, AlertTriangle, BarChart } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -48,14 +47,16 @@ export function AppSidebar() {
     { href: '/transactions-log', label: 'سجل العمليات', icon: ListChecks, isActive: () => pathname === '/transactions-log' },
     { href: '/suppliers-report', label: 'تقرير الموردين', icon: Users, isActive: () => pathname === '/suppliers-report' },
     { href: '/suppliers-log', label: 'سجل الموردين', icon: Users, isActive: () => pathname === '/suppliers-log' },
-    { href: '/customers-log', label: 'سجل العملاء', icon: Users, isActive: () => pathname === '/customers-log' },
-    { href: '/customer-cycle', label: 'تقرير العملاء', icon: Users2, isActive: () => pathname === '/customer-cycle' || pathname.startsWith('/customer-details/') },
+  { href: '/customers-log', label: 'سجل العملاء', icon: Users, isActive: () => pathname === '/customers-log' },
+  
     { href: '/inventory-report', label: 'تقرير المخزون التراكمي', icon: Package, isActive: () => pathname === '/inventory-report' },
+    { href: '/inventory-movement', label: 'سجل حركات المخزون', icon: Activity, isActive: () => pathname === '/inventory-movement' },
+    { href: '/inventory-alerts', label: 'تنبيهات المخزون', icon: AlertTriangle, isActive: () => pathname === '/inventory-alerts' },
+    { href: '/inventory-valuation', label: 'تقييم المخزون', icon: BarChart, isActive: () => pathname === '/inventory-valuation' },
     { href: '/factory-report', label: 'تقرير المصنع', icon: Factory, isActive: () => pathname === '/factory-report' },
     { href: '/reports', label: 'تقارير المبيعات', icon: LineChart, isActive: () => pathname === '/reports' },
     { href: '/expenses-report', label: 'تقرير المصروفات', icon: Wallet, isActive: () => pathname === '/expenses-report' },
     { href: '/transfers-report', label: 'تقرير التحويلات', icon: ArrowRightLeft, isActive: () => pathname === '/transfers-report' },
-    { href: '/payments-report', label: 'سجل الدفعات', icon: Landmark, isActive: () => pathname === '/payments-report' },
   ];
 
   return (

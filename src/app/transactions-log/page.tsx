@@ -90,9 +90,7 @@ const transactionSchema = z.object({
   operationNumber: z.string().optional(),
   customerName: z.string().optional(),
   date: z.date({ required_error: 'التاريخ مطلوب.' }),
-  executionDate: z.date().optional(),
-  showExecutionDate: z.boolean().optional().default(false),
-  dueDate: z.date().optional(),
+  
   supplierName: z.string().trim().min(1, 'اسم المورد مطلوب.'),
   governorate: z.string().optional(),
   city: z.string().optional(),
@@ -149,7 +147,7 @@ function TransactionsLogPageContent() {
   const [searchTerm, setSearchTerm] = useState(customerQuery || '');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  const [dateType, setDateType] = useState<'operation' | 'execution'>('operation');
+  
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -174,8 +172,8 @@ function TransactionsLogPageContent() {
   }>>([]);
   
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
-  const [isExecDatePopoverOpen, setIsExecDatePopoverOpen] = useState(false);
-  const [isDueDatePopoverOpen, setIsDueDatePopoverOpen] = useState(false);
+  
+  
   const [isTransactionDatePopoverOpen, setIsTransactionDatePopoverOpen] = useState(false);
   const [isDepartureDatePopoverOpen, setIsDepartureDatePopoverOpen] = useState(false);
   const [isDateReceivedPopoverOpen, setIsDateReceivedPopoverOpen] = useState(false);
@@ -221,7 +219,6 @@ function TransactionsLogPageContent() {
   const clearDateFilter = () => {
     setStartDate(undefined);
     setEndDate(undefined);
-    setDateType('operation');
   };
   
   const [availableCities, setAvailableCities] = useState<string[]>([]);
@@ -233,8 +230,7 @@ function TransactionsLogPageContent() {
       operationNumber: "",
       customerName: "",
       date: new Date(), 
-      executionDate: undefined, 
-      dueDate: undefined, 
+      
       supplierName: "", 
       governorate: "", 
       city: "", 
@@ -251,7 +247,7 @@ function TransactionsLogPageContent() {
       amountReceivedFromSupplier: 0, 
       receivedBy: "",
       dateReceivedFromSupplier: undefined,
-      showExecutionDate: false,
+      
       paymentMethodToFactory: undefined,
       paymentMethodFromSupplier: undefined,
       actualQuantityDeducted: 0,
@@ -290,14 +286,13 @@ function TransactionsLogPageContent() {
         paidBy: transaction.paidBy || '',
         receivedBy: transaction.receivedBy || '',
         date: new Date(transaction.date),
-        executionDate: transaction.executionDate ? new Date(transaction.executionDate) : undefined,
-        dueDate: transaction.dueDate ? new Date(transaction.dueDate) : undefined,
+        
         transactionDate: transaction.transactionDate ? new Date(transaction.transactionDate) : undefined,
         departureDate: transaction.departureDate ? new Date(transaction.departureDate) : undefined,
         datePaidToFactory: transaction.datePaidToFactory ? new Date(transaction.datePaidToFactory) : undefined,
         dateReceivedFromSupplier: transaction.dateReceivedFromSupplier ? new Date(transaction.dateReceivedFromSupplier) : undefined,
         dateReceivedFromCustomer: transaction.dateReceivedFromCustomer ? new Date(transaction.dateReceivedFromCustomer) : undefined,
-        showExecutionDate: transaction.showExecutionDate ?? false,
+        
         governorate: transaction.governorate || '',
         city: transaction.city || '',
         description: transaction.description || '',
@@ -320,8 +315,7 @@ function TransactionsLogPageContent() {
         operationNumber: "",
         customerName: "",
         date: new Date(), 
-        executionDate: undefined, 
-        dueDate: undefined, 
+        
         transactionDate: undefined,
         supplierName: "", 
         governorate: "", 
@@ -339,7 +333,7 @@ function TransactionsLogPageContent() {
         amountReceivedFromSupplier: 0, 
         receivedBy: "",
         dateReceivedFromSupplier: undefined,
-        showExecutionDate: false,
+        
         paymentMethodToFactory: undefined,
         paymentMethodFromSupplier: undefined,
         actualQuantityDeducted: 0,
@@ -465,7 +459,7 @@ function TransactionsLogPageContent() {
     const currentAttachment = previewAttachments?.[currentPreviewIndex];
     if (!file || !targetTransaction || !currentAttachment) return;
 
-    const fileType = file.type.startsWith('image/') ? 'image' : (file.type === 'application/pdf' ? 'pdf' : 'document');
+  const fileType: 'image' | 'pdf' | 'document' = file.type.startsWith('image/') ? 'image' : (file.type === 'application/pdf' ? 'pdf' : 'document');
     if (file.size > 10 * 1024 * 1024) {
       toast({ title: "خطأ في الملف", description: `حجم الملف كبير جداً.`, variant: "destructive" });
       return;
@@ -480,9 +474,9 @@ function TransactionsLogPageContent() {
 
       if (currentAttachment.url) await deleteAttachmentFromFirebase(currentAttachment.url);
 
-      const newAttachment = { ...currentAttachment, name: file.name, url: downloadURL, type: fileType, uploadDate: new Date() };
-      const updatedAttachments = targetTransaction.attachments?.map((att, index) => index === currentPreviewIndex ? newAttachment : att) || [];
-      const updatedTransaction = { ...targetTransaction, attachments: updatedAttachments };
+  const newAttachment: NonNullable<Transaction['attachments']>[number] = { ...currentAttachment, name: file.name, url: downloadURL, type: fileType, uploadDate: new Date() };
+  const updatedAttachments: NonNullable<Transaction['attachments']> = targetTransaction.attachments?.map((att, index) => index === currentPreviewIndex ? newAttachment : att) || [];
+  const updatedTransaction: Transaction = { ...targetTransaction, attachments: updatedAttachments };
       await updateTransaction(updatedTransaction);
 
       if (editingTransaction) setEditingTransaction(updatedTransaction);
@@ -593,19 +587,83 @@ function TransactionsLogPageContent() {
       
       let dateMatch = true;
       if (startDate || endDate) {
-        const targetDate = dateType === 'operation' ? t.date : (t.executionDate || t.date);
+        const targetDate = t.date;
         if (startDate && endDate) dateMatch = targetDate >= startDate && targetDate <= endDate;
         else if (startDate) dateMatch = targetDate >= startDate;
         else if (endDate) dateMatch = targetDate <= endDate;
       }
       return searchMatch && dateMatch;
     }).sort((a,b) => b.date.getTime() - a.date.getTime());
-  }, [transactions, searchTerm, startDate, endDate, dateType]);
+  }, [transactions, searchTerm, startDate, endDate]);
 
   const totalPurchasePriceDisplay = (watchedValues.quantity || 0) * (watchedValues.purchasePrice || 0);
   const totalSellingPriceDisplay = (watchedValues.sellingPrice || 0) > 0 ? (watchedValues.quantity || 0) * (watchedValues.sellingPrice || 0) : 0;
   const profitDisplay = (watchedValues.sellingPrice || 0) > 0 ? totalSellingPriceDisplay - totalPurchasePriceDisplay - (watchedValues.taxes || 0) : 0;
   
+  const handleExport = () => {
+    const headers = [
+      'م',
+      'رقم العملية',
+      'اسم العميل',
+      'التاريخ',
+      'اسم المورد',
+      'الوصف',
+      'الكمية',
+      'إجمالي الشراء',
+      'رصيد المورد بالمصنع',
+      'إجمالي البيع',
+      'رصيد العميل',
+      'مدفوع للمصنع',
+      'المستلم من المورد',
+      'المستلم من العميل',
+      'صافي الربح',
+    ];
+    const escapeCSV = (str: any) => {
+      if (str === null || str === undefined) return '';
+      const string = String(str);
+      if (string.search(/("|,|\n)/g) >= 0) return '"' + string.replace(/"/g, '""') + '"';
+      return string;
+    };
+    const rows = filteredAndSortedTransactions.map((t, idx) => {
+      const receivedFromCustomer = typeof t.amountReceivedFromCustomer === 'number' ? t.amountReceivedFromCustomer : 0;
+      const totalSales = typeof t.totalSellingPrice === 'number' ? t.totalSellingPrice : 0;
+      const receivedFromSupplier = typeof t.amountReceivedFromSupplier === 'number' ? t.amountReceivedFromSupplier : 0;
+      const customerBalance = (receivedFromCustomer - totalSales) - receivedFromSupplier;
+
+      const totalPurchase = typeof t.totalPurchasePrice === 'number' ? t.totalPurchasePrice : 0;
+      const paidToFactory = typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0;
+      const supplierBalanceAtFactory = totalPurchase - paidToFactory;
+
+      return [
+        idx + 1,
+        escapeCSV(t.operationNumber || '-'),
+        escapeCSV(t.customerName || '-'),
+        format(t.date, 'yyyy-MM-dd'),
+        escapeCSV(t.supplierName || '-'),
+        escapeCSV(t.description || ''),
+        t.quantity,
+        totalPurchase,
+        supplierBalanceAtFactory,
+        totalSales,
+        customerBalance,
+        paidToFactory,
+        receivedFromSupplier,
+        receivedFromCustomer,
+        t.profit,
+      ].join(',');
+    });
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'transactions-log.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-4 md:p-8 animate-pulse">
@@ -625,7 +683,10 @@ function TransactionsLogPageContent() {
     <div className="container-fluid">
       <header className="flex items-center justify-between mb-8 pt-8 px-4">
         <h1 className="text-3xl font-bold text-primary">سجل العمليات</h1>
-        <Button onClick={() => handleOpenDialog(null)}><Plus className="ml-2 h-4 w-4" />إضافة عملية</Button>
+        <div className="flex gap-2">
+          <Button onClick={() => handleOpenDialog(null)}><Plus className="ml-2 h-4 w-4" />إضافة عملية</Button>
+          <Button variant="outline" onClick={handleExport}><Download className="ml-2 h-4 w-4" />تصدير CSV</Button>
+        </div>
       </header>
       
       <Card className="mx-4">
@@ -637,15 +698,7 @@ function TransactionsLogPageContent() {
                     <Input placeholder="بحث برقم العملية، اسم العميل، الوصف أو اسم المورد..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
                   </div>
                   <div className="flex flex-col md:flex-row gap-2">
-                    <div className="flex items-center gap-2">
-                      <Select value={dateType} onValueChange={(value) => setDateType(value as 'operation' | 'execution')}>
-                        <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="operation">تاريخ العملية</SelectItem>
-                          <SelectItem value="execution">تاريخ التنفيذ</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    
                     <div className="flex items-center gap-2">
                       <Popover open={isStartDatePopoverOpen} onOpenChange={setIsStartDatePopoverOpen}>
                         <PopoverTrigger asChild>
@@ -693,7 +746,7 @@ function TransactionsLogPageContent() {
                   <TableHead>رقم العملية</TableHead>
                   <TableHead>اسم العميل</TableHead>
                   <TableHead>التاريخ</TableHead>
-                  <TableHead>تاريخ التنفيذ</TableHead>
+                  
                   <TableHead>اسم المورد</TableHead>
                   <TableHead>الوصف</TableHead>
                   <TableHead>المنطقة</TableHead>
@@ -702,17 +755,20 @@ function TransactionsLogPageContent() {
                   <TableHead>الكمية المتبقية</TableHead>
                   <TableHead>المبلغ المتبقي</TableHead>
                   <TableHead>إجمالي الشراء</TableHead>
+                  <TableHead>رصيد المورد بالمصنع</TableHead>
                   <TableHead>إجمالي البيع</TableHead>
+                  <TableHead>رصيد العميل</TableHead>
                   <TableHead>صافي الربح</TableHead>
                   <TableHead>مدفوع للمصنع</TableHead>
                   <TableHead>الدافع للمصنع</TableHead>
                   <TableHead>ت. دفع المصنع</TableHead>
                   <TableHead>طريقة دفع المصنع</TableHead>
                   <TableHead>المستلم من المورد</TableHead>
-                  <TableHead>ت. استلام المورد</TableHead>
-                  <TableHead>طريقة استلام المورد</TableHead>
+                  <TableHead>ت الاستلام من المورد</TableHead>
+                  <TableHead>طريقة الاستلام</TableHead>
                   <TableHead>المستلم من العميل</TableHead>
-                  <TableHead>طريقة استلام العميل</TableHead>
+                  <TableHead>ت الاستلام من العميل</TableHead>
+                  <TableHead>طريقة الاستلام</TableHead>
                   <TableHead>الناقل</TableHead>
                   <TableHead>هاتف الناقل</TableHead>
                   <TableHead>تاريخ الخروج</TableHead>
@@ -732,7 +788,7 @@ function TransactionsLogPageContent() {
                       <TableCell>{t.operationNumber || '-'}</TableCell>
                       <TableCell>{t.customerName || '-'}</TableCell>
                       <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
-                      <TableCell>{t.showExecutionDate && t.executionDate ? format(t.executionDate, 'dd MMMM yyyy', { locale: ar }) : '-'}</TableCell>
+                      
                       <TableCell>{t.supplierName}</TableCell>
                       <TableCell>{t.description}</TableCell>
                       <TableCell>{t.governorate || '-'}{t.city ? ` - ${t.city}` : ''}</TableCell>
@@ -741,7 +797,24 @@ function TransactionsLogPageContent() {
                       <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
                       <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>{t.totalPurchasePrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const totalPurchase = typeof t.totalPurchasePrice === 'number' ? t.totalPurchasePrice : 0;
+                          const paidToFactory = typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0;
+                          const supplierBalanceAtFactory = totalPurchase - paidToFactory;
+                          return supplierBalanceAtFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+                        })()}
+                      </TableCell>
                       <TableCell>{t.totalSellingPrice > 0 ? t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const receivedFromCustomer = typeof t.amountReceivedFromCustomer === 'number' ? t.amountReceivedFromCustomer : 0;
+                          const totalSales = typeof t.totalSellingPrice === 'number' ? t.totalSellingPrice : 0;
+                          const receivedFromSupplier = typeof t.amountReceivedFromSupplier === 'number' ? t.amountReceivedFromSupplier : 0;
+                          const balance = (receivedFromCustomer - totalSales) - receivedFromSupplier;
+                          return balance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+                        })()}
+                      </TableCell>
                       <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>{t.amountPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>{t.paidBy || '-'}</TableCell>
@@ -753,15 +826,21 @@ function TransactionsLogPageContent() {
                         {!t.paymentMethodToFactory && '-'}
                       </TableCell>
                       <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                      <TableCell>{t.receivedBy || '-'}</TableCell>
-                       <TableCell>{t.dateReceivedFromSupplier ? format(t.dateReceivedFromSupplier, 'dd-MM-yy') : '-'}</TableCell>
+                      <TableCell>{t.dateReceivedFromSupplier ? format(t.dateReceivedFromSupplier, 'dd-MM-yy') : '-'}</TableCell>
                       <TableCell>
                         {t.paymentMethodFromSupplier === 'نقدي' && '💵 نقدي'}
                         {t.paymentMethodFromSupplier === 'تحويل بنكي' && '🏦 تحويل بنكي'}
                         {t.paymentMethodFromSupplier === 'إيداع' && '💳 إيداع'}
                         {!t.paymentMethodFromSupplier && '-'}
                       </TableCell>
-                      <TableCell>{t.customerPaymentReceivedBy || '-'}</TableCell>
+                      <TableCell>
+                        {typeof t.amountReceivedFromCustomer === 'number' && t.amountReceivedFromCustomer > 0
+                          ? t.amountReceivedFromCustomer.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {t.dateReceivedFromCustomer ? format(t.dateReceivedFromCustomer, 'dd-MM-yy') : '-'}
+                      </TableCell>
                       <TableCell>
                         {t.paymentMethodFromCustomer === 'نقدي' && '💵 نقدي'}
                         {t.paymentMethodFromCustomer === 'تحويل بنكي' && '🏦 تحويل بنكي'}
@@ -957,10 +1036,10 @@ function TransactionsLogPageContent() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <FormField control={form.control} name="amountReceivedFromSupplier" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                               <FormField control={form.control} name="receivedBy" render={({ field }) => (
-                                <FormItem><FormLabel>إلى (المستلم)</FormLabel>
+                <FormItem><FormLabel>العميل (المستلم)</FormLabel>
                                   <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
-                                    <SelectContent>{allEntities.map((name) => (<SelectItem key={`receivedBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
+                  <FormControl><SelectTrigger><SelectValue placeholder="اختر العميل" /></SelectTrigger></FormControl>
+                  <SelectContent>{customerNames.map((name) => (<SelectItem key={`receivedBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
                                   </Select>
                                   <FormMessage />
                                 </FormItem>
@@ -980,10 +1059,10 @@ function TransactionsLogPageContent() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                 <FormField control={form.control} name="customerPaymentReceivedBy" render={({ field }) => (
-                                  <FormItem><FormLabel>إلى (المستلم)</FormLabel>
+                                  <FormItem><FormLabel>المورد (المستلم)</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}>
-                                      <FormControl><SelectTrigger><SelectValue placeholder="اختر المستلم" /></SelectTrigger></FormControl>
-                                      <SelectContent>{allEntities.map((name) => (<SelectItem key={`custPayRcvdBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
+                                      <FormControl><SelectTrigger><SelectValue placeholder="اختر المورد" /></SelectTrigger></FormControl>
+                                      <SelectContent>{supplierNames.map((name) => (<SelectItem key={`custPayRcvdBy-${name}`} value={name}>{name}</SelectItem>))}</SelectContent>
                                     </Select>
                                     <FormMessage />
                                   </FormItem>
@@ -997,27 +1076,7 @@ function TransactionsLogPageContent() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                            <FormField control={form.control} name="executionDate" render={({ field }) => (
-                              <FormItem className="flex flex-col"><FormLabel>تاريخ التنفيذ (اختياري)</FormLabel><Popover modal={false} open={isExecDatePopoverOpen} onOpenChange={setIsExecDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsExecDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
-                            )} />
-                            <FormField control={form.control} name="showExecutionDate" render={({ field }) => (
-                              <FormItem className="flex items-center space-x-2 pt-8">
-                                <FormControl>
-                                  <input
-                                    type="checkbox"
-                                    checked={field.value}
-                                    onChange={(e) => field.onChange(e.target.checked)}
-                                    className="h-4 w-4 rounded border"
-                                  />
-                                </FormControl>
-                                <FormLabel className="mb-0 flex-1 cursor-pointer">إظهار تاريخ التنفيذ</FormLabel>
-                              </FormItem>
-                            )} />
-                            <FormField control={form.control} name="dueDate" render={({ field }) => (
-                              <FormItem className="flex flex-col"><FormLabel>تاريخ الاستحقاق (اختياري)</FormLabel><Popover modal={false} open={isDueDatePopoverOpen} onOpenChange={setIsDueDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDueDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
-                            )} />
-                          </div>
+                          
                           <FormField
                             control={form.control}
                             name="notes"

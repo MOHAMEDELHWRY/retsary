@@ -68,7 +68,19 @@ export function FtpUploadDialog({
 
       // Then transfer to FTP server
       const functions = getFunctions(app)
-      const ftpUpload = httpsCallable(functions, 'ftpUpload')
+      type FtpUploadPayload = {
+        fileUrl: string;
+        remotePath: string;
+        ftpConfig: {
+          host: string;
+          port: number;
+          user: string;
+          password: string;
+          secure: boolean;
+        };
+      };
+      type FtpUploadResult = { path: string; url?: string };
+      const ftpUpload = httpsCallable<FtpUploadPayload, FtpUploadResult>(functions, 'ftpUpload')
       
       const result = await ftpUpload({
         fileUrl: downloadURL,
@@ -78,9 +90,7 @@ export function FtpUploadDialog({
 
       setProgress(100)
       
-      if (onUploadComplete) {
-        onUploadComplete(result.data.path)
-      }
+  if (onUploadComplete) onUploadComplete(result.data.path)
 
       // Close dialog after 1 second
       setTimeout(() => {

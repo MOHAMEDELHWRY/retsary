@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from 'react';
@@ -124,19 +123,22 @@ export default function ReportsPage() {
   const monthlyProfitData = useMemo(() => {
     const data: { [key: string]: { profit: number; sales: number } } = {};
     filteredSales.forEach(t => {
-      const month = format(t.date, 'yyyy-MM', { locale: ar });
-      if (!data[month]) {
-        data[month] = { profit: 0, sales: 0 };
+      const monthKey = format(t.date, 'yyyy-MM');
+      if (!data[monthKey]) {
+        data[monthKey] = { profit: 0, sales: 0 };
       }
-      data[month].profit += t.profit;
-      data[month].sales += t.totalSellingPrice;
+      data[monthKey].profit += t.profit;
+      data[monthKey].sales += t.totalSellingPrice;
     });
 
-    return Object.entries(data).map(([month, values]) => ({
-      name: format(new Date(month), 'MMM yy', { locale: ar }),
-      'الأرباح': values.profit,
-      'المبيعات': values.sales,
-    })).sort((a,b) => new Date(a.name).getTime() - new Date(b.name));
+    return Object.entries(data)
+      .map(([monthKey, values]) => ({
+        monthKey,
+        name: format(new Date(`${monthKey}-01`), 'MMM yy', { locale: ar }),
+        'الأرباح': values.profit,
+        'المبيعات': values.sales,
+      }))
+      .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
   }, [filteredSales]);
 
   const handleFilterChange = (key: keyof typeof filters, value: any) => {
