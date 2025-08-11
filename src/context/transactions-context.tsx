@@ -224,6 +224,13 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           const datePaidToFactory = data.datePaidToFactory ? (data.datePaidToFactory instanceof Timestamp ? data.datePaidToFactory.toDate() : new Date(data.datePaidToFactory)) : undefined;
           const dateReceivedFromSupplier = data.dateReceivedFromSupplier ? (data.dateReceivedFromSupplier instanceof Timestamp ? data.dateReceivedFromSupplier.toDate() : new Date(data.dateReceivedFromSupplier)) : undefined;
           
+          const factoryPayments = Array.isArray(data.factoryPayments)
+            ? data.factoryPayments.map((p: any) => ({
+                ...p,
+                date: p?.date ? (p.date instanceof Timestamp ? p.date.toDate() : new Date(p.date)) : undefined,
+              }))
+            : undefined;
+
           return {
             ...data,
             id: doc.id,
@@ -235,6 +242,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
             dateReceivedFromCustomer,
             datePaidToFactory,
             dateReceivedFromSupplier,
+            factoryPayments,
           } as Transaction;
         });
         setTransactions(fetchedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
@@ -351,6 +359,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         dueDate: transaction.dueDate ? Timestamp.fromDate(transaction.dueDate) : undefined,
         datePaidToFactory: transaction.datePaidToFactory ? Timestamp.fromDate(transaction.datePaidToFactory) : undefined,
         dateReceivedFromSupplier: transaction.dateReceivedFromSupplier ? Timestamp.fromDate(transaction.dateReceivedFromSupplier) : undefined,
+        factoryPayments: transaction.factoryPayments?.map(p => ({
+          ...p,
+          date: p.date ? Timestamp.fromDate(p.date) : undefined,
+        })),
       });
       const docRef = await addDoc(transactionsCollectionRef, docData);
       const newTransaction = { ...transaction, id: docRef.id };
@@ -374,6 +386,10 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         dueDate: updatedTransaction.dueDate ? Timestamp.fromDate(updatedTransaction.dueDate) : undefined,
         datePaidToFactory: updatedTransaction.datePaidToFactory ? Timestamp.fromDate(updatedTransaction.datePaidToFactory) : undefined,
         dateReceivedFromSupplier: updatedTransaction.dateReceivedFromSupplier ? Timestamp.fromDate(updatedTransaction.dateReceivedFromSupplier) : undefined,
+        factoryPayments: updatedTransaction.factoryPayments?.map(p => ({
+          ...p,
+          date: p.date ? Timestamp.fromDate(p.date) : undefined,
+        })),
       });
       await updateDoc(transactionDoc, docData);
       setTransactions(prev => 

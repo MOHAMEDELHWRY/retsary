@@ -88,6 +88,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 const transactionSchema = z.object({
   operationNumber: z.string().optional(),
+  operationKey: z.string().optional(),
   customerName: z.string().optional(),
   date: z.date({ required_error: 'التاريخ مطلوب.' }),
   
@@ -105,6 +106,16 @@ const transactionSchema = z.object({
   amountPaidToFactory: z.coerce.number().min(0, 'المبلغ المدفوع يجب أن يكون موجبًا.').default(0),
   paidBy: z.string().optional(), 
   datePaidToFactory: z.date().optional(),
+  factoryPayments: z
+    .array(
+      z.object({
+        amount: z.coerce.number().min(0, 'المبلغ يجب أن يكون موجبًا.'),
+        paidBy: z.string().optional(),
+        date: z.coerce.date().optional(),
+        method: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
+      })
+    )
+    .optional(),
   
   amountReceivedFromSupplier: z.coerce.number().min(0, 'المبلغ المستلم يجب أن يكون موجبًا.').default(0),
   receivedBy: z.string().optional(),
@@ -116,6 +127,7 @@ const transactionSchema = z.object({
   paymentMethodFromSupplier: z.enum(['نقدي', 'تحويل بنكي', 'إيداع']).optional(),
   
   actualQuantityDeducted: z.coerce.number().min(0, 'الكمية الفعلية يجب أن تكون موجبة.').optional(),
+  otherQuantityDeducted: z.coerce.number().min(0, 'الكمية يجب أن تكون موجبة.').optional(),
   transactionDate: z.date().optional(),
   transactionNumber: z.string().optional(),
 
@@ -161,6 +173,8 @@ function TransactionsLogPageContent() {
   const [imageLoadError, setImageLoadError] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [customerAmountManuallyEdited, setCustomerAmountManuallyEdited] = useState(false);
+  const [lastEditedDeductField, setLastEditedDeductField] = useState<'actual' | 'other' | null>(null);
   
   const [attachments, setAttachments] = useState<Array<{
     id: string;
@@ -182,6 +196,10 @@ function TransactionsLogPageContent() {
   const [isDatePaidToFactoryPopoverOpen, setIsDatePaidToFactoryPopoverOpen] = useState(false);
   const [isDateReceivedFromSupplierPopoverOpen, setIsDateReceivedFromSupplierPopoverOpen] = useState(false);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [factoryPaymentDatePopoverOpen, setFactoryPaymentDatePopoverOpen] = useState<Record<number, boolean>>({});
+  const [isOpReportOpen, setIsOpReportOpen] = useState(false);
+  const [reportTx, setReportTx] = useState<Transaction | null>(null);
+  const handleOpenOperationReport = (t: Transaction) => { setReportTx(t); setIsOpReportOpen(true); };
 
   useEffect(() => {
     if (customerQuery) {
@@ -228,6 +246,7 @@ function TransactionsLogPageContent() {
     resolver: zodResolver(transactionSchema),
     defaultValues: { 
       operationNumber: "",
+  operationKey: "",
       customerName: "",
       date: new Date(), 
       
@@ -244,6 +263,7 @@ function TransactionsLogPageContent() {
       amountPaidToFactory: 0, 
       paidBy: "",
       datePaidToFactory: undefined,
+  factoryPayments: [],
       amountReceivedFromSupplier: 0, 
       receivedBy: "",
       dateReceivedFromSupplier: undefined,
@@ -251,6 +271,7 @@ function TransactionsLogPageContent() {
       paymentMethodToFactory: undefined,
       paymentMethodFromSupplier: undefined,
       actualQuantityDeducted: 0,
+  otherQuantityDeducted: 0,
       transactionNumber: "",
       carrierName: "",
       carrierPhone: "",
@@ -265,6 +286,7 @@ function TransactionsLogPageContent() {
   const { watch, setValue } = form;
   const watchedValues = watch();
   const selectedGovernorate = watch("governorate");
+  const watchedOperationKey = watch("operationKey");
 
   useEffect(() => {
       if (selectedGovernorate) {
@@ -275,6 +297,75 @@ function TransactionsLogPageContent() {
       }
   }, [selectedGovernorate, setValue]);
 
+  // Aggregates for the same operation key (excluding current editing record)
+  const { opAssignedQtyOther, opDeductedQtyOther, opReceivedFromCustomerOther } = useMemo(() => {
+    const key = (watchedOperationKey || '').trim();
+    if (!key) return { opAssignedQtyOther: 0, opDeductedQtyOther: 0, opReceivedFromCustomerOther: 0 };
+    const others = transactions.filter(t => (t.operationKey || '').trim() === key && (!editingTransaction || t.id !== editingTransaction.id));
+    const opAssignedQtyOther = others.reduce((s, t) => s + (Number(t.quantity) || 0), 0);
+    const opDeductedQtyOther = others.reduce((s, t) => s + ((Number(t.actualQuantityDeducted) || 0) + (Number(t.otherQuantityDeducted) || 0)), 0);
+    const opReceivedFromCustomerOther = others.reduce((s, t) => s + (Number(t.amountReceivedFromCustomer) || 0), 0);
+    return { opAssignedQtyOther, opDeductedQtyOther, opReceivedFromCustomerOther };
+  }, [transactions, watchedOperationKey, editingTransaction]);
+
+  const currentAssignedQty = (Number(watchedValues.quantity) || 0);
+  const currentDeductedQty = (Number(watchedValues.actualQuantityDeducted) || 0) + (Number(watchedValues.otherQuantityDeducted) || 0);
+  const totalAssignedForKey = opAssignedQtyOther + currentAssignedQty;
+  const remainingQtyForKeyBeforeCurrent = totalAssignedForKey - opDeductedQtyOther;
+  const remainingQtyForKeyAfterCurrent = Math.max(0, remainingQtyForKeyBeforeCurrent - currentDeductedQty);
+
+  // Clamp current deduction to not exceed remaining for same key
+  useEffect(() => {
+    const key = (watchedOperationKey || '').trim();
+    if (!key) return;
+    const allowed = Math.max(0, remainingQtyForKeyBeforeCurrent);
+    const sum = currentDeductedQty;
+    if (sum > allowed + 1e-9) {
+      const excess = sum - allowed;
+      if (lastEditedDeductField === 'actual') {
+        const newVal = Math.max(0, (watchedValues.actualQuantityDeducted || 0) - excess);
+        setValue('actualQuantityDeducted', parseFloat(newVal.toFixed(3)), { shouldDirty: true });
+        toast({ title: 'تنبيه', description: 'لا يمكن خصم أكثر من المتبقي على نفس المفتاح. تم ضبط القيمة.', variant: 'destructive' });
+      } else if (lastEditedDeductField === 'other') {
+        const newVal = Math.max(0, (watchedValues.otherQuantityDeducted || 0) - excess);
+        setValue('otherQuantityDeducted', parseFloat(newVal.toFixed(3)), { shouldDirty: true });
+        toast({ title: 'تنبيه', description: 'لا يمكن خصم أكثر من المتبقي على نفس المفتاح. تم ضبط القيمة.', variant: 'destructive' });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDeductedQty, remainingQtyForKeyBeforeCurrent, watchedOperationKey]);
+
+  // Auto-calc customer amount from deducted qty x selling price (unless manually overridden)
+  useEffect(() => {
+    if (customerAmountManuallyEdited) return;
+    const sp = (watchedValues.sellingPrice || 0);
+    const qty = (watchedValues.actualQuantityDeducted || 0) + (watchedValues.otherQuantityDeducted || 0);
+    const suggested = parseFloat((qty * sp).toFixed(2));
+    setValue('amountReceivedFromCustomer', suggested, { shouldDirty: true });
+  }, [watchedValues.actualQuantityDeducted, watchedValues.otherQuantityDeducted, watchedValues.sellingPrice, setValue, customerAmountManuallyEdited]);
+
+  // Parse dynamic operation key like "42.5/اسم" to set variety and customerName, and default category to "سائب"
+  useEffect(() => {
+    const key = (watchedOperationKey || '').trim();
+    if (!key) return;
+    const parts = key.split('/');
+    if (parts.length >= 2) {
+      const first = parts[0].trim();
+      const second = parts.slice(1).join('/').trim();
+      // If first matches a known variety option, set it; otherwise ignore
+      if (varietyOptions.includes(first)) {
+        setValue('variety', first as any, { shouldValidate: false, shouldDirty: true });
+      }
+      if (second) {
+        setValue('customerName', second as any, { shouldValidate: false, shouldDirty: true });
+      }
+      if (!watchedValues.category) {
+        setValue('category', 'سائب' as any, { shouldValidate: false, shouldDirty: true });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedOperationKey]);
+
 
   const handleOpenDialog = (transaction: Transaction | null) => {
     setEditingTransaction(transaction);
@@ -282,6 +373,7 @@ function TransactionsLogPageContent() {
       form.reset({
         ...transaction,
         operationNumber: transaction.operationNumber || '',
+  operationKey: transaction.operationKey || '',
         customerName: transaction.customerName || '',
         paidBy: transaction.paidBy || '',
         receivedBy: transaction.receivedBy || '',
@@ -300,7 +392,9 @@ function TransactionsLogPageContent() {
         variety: transaction.variety || '',
         paymentMethodToFactory: transaction.paymentMethodToFactory || undefined,
         paymentMethodFromSupplier: transaction.paymentMethodFromSupplier || undefined,
-        actualQuantityDeducted: transaction.actualQuantityDeducted || 0,
+  actualQuantityDeducted: transaction.actualQuantityDeducted || 0,
+  otherQuantityDeducted: transaction.otherQuantityDeducted || 0,
+  factoryPayments: transaction.factoryPayments || [],
         transactionNumber: transaction.transactionNumber || '',
         carrierName: transaction.carrierName || "",
         carrierPhone: transaction.carrierPhone || "",
@@ -313,6 +407,7 @@ function TransactionsLogPageContent() {
     } else {
       form.reset({ 
         operationNumber: "",
+  operationKey: "",
         customerName: "",
         date: new Date(), 
         
@@ -327,16 +422,18 @@ function TransactionsLogPageContent() {
         purchasePrice: 0, 
         sellingPrice: 0, 
         taxes: 0, 
-        amountPaidToFactory: 0, 
+  amountPaidToFactory: 0, 
         paidBy: "",
         datePaidToFactory: undefined,
+  factoryPayments: [],
         amountReceivedFromSupplier: 0, 
         receivedBy: "",
         dateReceivedFromSupplier: undefined,
         
         paymentMethodToFactory: undefined,
         paymentMethodFromSupplier: undefined,
-        actualQuantityDeducted: 0,
+  actualQuantityDeducted: 0,
+  otherQuantityDeducted: 0,
         transactionNumber: "",
         carrierName: "",
         carrierPhone: "",
@@ -526,10 +623,20 @@ function TransactionsLogPageContent() {
       const totalSellingPrice = (values.sellingPrice || 0) > 0 ? (values.quantity || 0) * (values.sellingPrice || 0) : 0;
       const profit = totalSellingPrice > 0 ? totalSellingPrice - totalPurchasePrice - (values.taxes || 0) : 0;
       const actualQuantityDeducted = values.actualQuantityDeducted || 0;
-      const remainingQuantity = (values.quantity || 0) - actualQuantityDeducted;
+      const otherQuantityDeducted = values.otherQuantityDeducted || 0;
+      const totalDeducted = actualQuantityDeducted + otherQuantityDeducted;
+      const remainingQuantity = (values.quantity || 0) - totalDeducted;
       const remainingAmount = remainingQuantity * (values.purchasePrice || 0);
 
-      let transactionData = { ...values, totalPurchasePrice, totalSellingPrice, profit, description: values.description || 'عملية غير محددة', remainingQuantity, remainingAmount };
+      let transactionData = { 
+        ...values, 
+        totalPurchasePrice, 
+        totalSellingPrice, 
+        profit, 
+        description: values.description || 'عملية غير محددة', 
+        remainingQuantity, 
+        remainingAmount 
+      };
       
       if (editingTransaction) {
         let updatedTransaction = { ...editingTransaction, ...transactionData };
@@ -599,6 +706,8 @@ function TransactionsLogPageContent() {
   const totalPurchasePriceDisplay = (watchedValues.quantity || 0) * (watchedValues.purchasePrice || 0);
   const totalSellingPriceDisplay = (watchedValues.sellingPrice || 0) > 0 ? (watchedValues.quantity || 0) * (watchedValues.sellingPrice || 0) : 0;
   const profitDisplay = (watchedValues.sellingPrice || 0) > 0 ? totalSellingPriceDisplay - totalPurchasePriceDisplay - (watchedValues.taxes || 0) : 0;
+  const sumFactoryPaymentsDisplay = (watchedValues.factoryPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0) + (watchedValues.amountPaidToFactory || 0);
+  const computedQuantityFromPayments = (watchedValues.purchasePrice || 0) > 0 ? (sumFactoryPaymentsDisplay / (watchedValues.purchasePrice || 1)) : 0;
   
   const handleExport = () => {
     const headers = [
@@ -630,8 +739,9 @@ function TransactionsLogPageContent() {
       const receivedFromSupplier = typeof t.amountReceivedFromSupplier === 'number' ? t.amountReceivedFromSupplier : 0;
       const customerBalance = (receivedFromCustomer - totalSales) - receivedFromSupplier;
 
-      const totalPurchase = typeof t.totalPurchasePrice === 'number' ? t.totalPurchasePrice : 0;
-      const paidToFactory = typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0;
+  const totalPurchase = typeof t.totalPurchasePrice === 'number' ? t.totalPurchasePrice : 0;
+  const listPaid = (t.factoryPayments || []).reduce((s, p) => s + (p.amount || 0), 0);
+  const paidToFactory = (typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0) + listPaid;
       const supplierBalanceAtFactory = totalPurchase - paidToFactory;
 
       return [
@@ -793,14 +903,15 @@ function TransactionsLogPageContent() {
                       <TableCell>{t.description}</TableCell>
                       <TableCell>{t.governorate || '-'}{t.city ? ` - ${t.city}` : ''}</TableCell>
                       <TableCell>{t.quantity} طن {t.variety ? `/ ${t.variety}` : ''} {t.category ? `/ ${t.category}` : ''}</TableCell>
-                      <TableCell className="text-orange-600 font-medium">{(t.actualQuantityDeducted || 0).toFixed(2)} طن</TableCell>
+                      <TableCell className="text-orange-600 font-medium">{(((t.actualQuantityDeducted || 0) + (t.otherQuantityDeducted || 0))).toFixed(2)} طن</TableCell>
                       <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
                       <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>{t.totalPurchasePrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
                       <TableCell>
                         {(() => {
                           const totalPurchase = typeof t.totalPurchasePrice === 'number' ? t.totalPurchasePrice : 0;
-                          const paidToFactory = typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0;
+                          const listPaid = (t.factoryPayments || []).reduce((s, p) => s + (p.amount || 0), 0);
+                          const paidToFactory = (typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0) + listPaid;
                           const supplierBalanceAtFactory = totalPurchase - paidToFactory;
                           return supplierBalanceAtFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
                         })()}
@@ -816,7 +927,13 @@ function TransactionsLogPageContent() {
                         })()}
                       </TableCell>
                       <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                      <TableCell>{t.amountPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const listPaid = (t.factoryPayments || []).reduce((s, p) => s + (p.amount || 0), 0);
+                          const paidToFactory = (typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0) + listPaid;
+                          return paidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+                        })()}
+                      </TableCell>
                       <TableCell>{t.paidBy || '-'}</TableCell>
                       <TableCell>{t.datePaidToFactory ? format(t.datePaidToFactory, 'dd-MM-yy') : '-'}</TableCell>
                       <TableCell>
@@ -866,6 +983,9 @@ function TransactionsLogPageContent() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(t)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" title="تقرير العملية" onClick={() => handleOpenOperationReport(t)}>
+                            <LineChart className="h-4 w-4 text-emerald-600" />
+                          </Button>
                           {t.customerName && (<Button variant="ghost" size="icon" onClick={() => handleCreatePaymentFromTransaction(t)} title="إنشاء مدفوعة عميل من هذه العملية"><CreditCard className="h-4 w-4 text-blue-600" /></Button>)}
                           <AlertDialog>
                             <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
@@ -900,6 +1020,13 @@ function TransactionsLogPageContent() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                           <FormField control={form.control} name="operationNumber" render={({ field }) => (
                             <FormItem><FormLabel>رقم العملية (اختياري)</FormLabel><FormControl><Input placeholder="رقم العملية" {...field} /></FormControl><FormMessage /></FormItem>
+                          )} />
+                          <FormField control={form.control} name="operationKey" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>مفتاح العملية (سائب) <span className="text-xs text-muted-foreground">مثال: 42.5/اسم العميل</span></FormLabel>
+                              <FormControl><Input placeholder="مثال: 42.5/ناصر عراقى" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
                           )} />
                           <FormField
                             control={form.control}
@@ -1028,6 +1155,93 @@ function TransactionsLogPageContent() {
                                 <FormItem className="flex flex-col"><FormLabel>تاريخ الدفع للمصنع</FormLabel><Popover modal={false} open={isDatePaidToFactoryPopoverOpen} onOpenChange={setIsDatePaidToFactoryPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDatePaidToFactoryPopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                               )} />
                              </div>
+
+                             {/* دفعات إضافية للمصنع */}
+                             <div className="mt-4 space-y-2">
+                               <div className="flex items-center justify-between">
+                                 <h5 className="text-sm font-medium">دفعات إضافية</h5>
+                                 <Button type="button" variant="outline" size="sm" onClick={() => {
+                                   const current = [...(watchedValues.factoryPayments || [])];
+                                   current.push({ amount: 0, paidBy: '', date: undefined, method: undefined });
+                                   setValue('factoryPayments', current as any, { shouldDirty: true });
+                                 }}>إضافة دفعة</Button>
+                               </div>
+                               {(watchedValues.factoryPayments || []).length > 0 && (
+                                 <div className="space-y-3">
+                                   {(watchedValues.factoryPayments || []).map((p, idx) => (
+                                     <div key={idx} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+                                       <div>
+                                         <Label>المبلغ</Label>
+                                         <Input type="number" value={p.amount ?? 0} onChange={(e) => {
+                                           const v = parseFloat(e.target.value || '0');
+                                           const arr = [...(watchedValues.factoryPayments || [])];
+                                           arr[idx] = { ...arr[idx], amount: isNaN(v) ? 0 : v };
+                                           setValue('factoryPayments', arr as any, { shouldDirty: true });
+                                         }} />
+                                       </div>
+                                       <div>
+                                         <Label>الدافع</Label>
+                                         <Select value={p.paidBy || ''} onValueChange={(val) => {
+                                           const arr = [...(watchedValues.factoryPayments || [])];
+                                           arr[idx] = { ...arr[idx], paidBy: val };
+                                           setValue('factoryPayments', arr as any, { shouldDirty: true });
+                                         }}>
+                                           <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                                           <SelectContent>{allEntities.map(n => (<SelectItem key={`fp-${idx}-${n}`} value={n}>{n}</SelectItem>))}</SelectContent>
+                                         </Select>
+                                       </div>
+                                       <div>
+                                         <Label>الطريقة</Label>
+                                         <Select value={p.method || undefined} onValueChange={(val) => {
+                                           const arr = [...(watchedValues.factoryPayments || [])];
+                                           arr[idx] = { ...arr[idx], method: val as any };
+                                           setValue('factoryPayments', arr as any, { shouldDirty: true });
+                                         }}>
+                                           <SelectTrigger><SelectValue placeholder="اختر" /></SelectTrigger>
+                                           <SelectContent>
+                                             <SelectItem value="نقدي">نقدي</SelectItem>
+                                             <SelectItem value="تحويل بنكي">تحويل بنكي</SelectItem>
+                                             <SelectItem value="إيداع">إيداع</SelectItem>
+                                           </SelectContent>
+                                         </Select>
+                                       </div>
+                                       <div className="flex flex-col">
+                                         <Label>التاريخ</Label>
+                                         <Popover modal={false} open={!!factoryPaymentDatePopoverOpen[idx]} onOpenChange={(open) => setFactoryPaymentDatePopoverOpen(prev => ({ ...prev, [idx]: open }))}>
+                                           <PopoverTrigger asChild>
+                                             <Button variant="outline" className={cn("w-full justify-start text-right font-normal", !p.date && "text-muted-foreground")}>
+                                               <CalendarIcon className="ml-2 h-4 w-4" />{p.date ? format(p.date, 'PPP', { locale: ar }) : <span>اختر تاريخ</span>}
+                                             </Button>
+                                           </PopoverTrigger>
+                                           <PopoverContent className="w-auto p-0" align="center">
+                                             <Calendar mode="single" selected={p.date} onSelect={(date) => {
+                                               const arr = [...(watchedValues.factoryPayments || [])];
+                                               arr[idx] = { ...arr[idx], date: date || undefined };
+                                               setValue('factoryPayments', arr as any, { shouldDirty: true });
+                                               setFactoryPaymentDatePopoverOpen(prev => ({ ...prev, [idx]: false }));
+                                             }} initialFocus />
+                                           </PopoverContent>
+                                         </Popover>
+                                       </div>
+                                       <div className="flex items-center gap-2">
+                                         <Button type="button" variant="ghost" className="text-red-600" onClick={() => {
+                                           const arr = [...(watchedValues.factoryPayments || [])];
+                                           arr.splice(idx, 1);
+                                           setValue('factoryPayments', arr as any, { shouldDirty: true });
+                                         }}>
+                                           <Trash2 className="h-4 w-4" />
+                                         </Button>
+                                       </div>
+                                     </div>
+                                   ))}
+                                   <div className="text-xs text-muted-foreground">إجمالي دفعات المصنع: {sumFactoryPaymentsDisplay.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div>
+                                   <div className="flex items-center gap-2 text-xs">
+                                     <span>كمية محسوبة من الدفعات وسعر الشراء: <b>{computedQuantityFromPayments.toFixed(3)} طن</b></span>
+                                     <Button type="button" size="sm" variant="secondary" onClick={() => setValue('quantity', Number.isFinite(computedQuantityFromPayments) ? parseFloat(computedQuantityFromPayments.toFixed(3)) : 0, { shouldDirty: true })}>اعتماد الكمية</Button>
+                                   </div>
+                                 </div>
+                               )}
+                             </div>
                           </div>
                           
                           {/* دفعة من المورد */}
@@ -1057,7 +1271,15 @@ function TransactionsLogPageContent() {
                           <div className="p-3 border rounded-lg space-y-3">
                             <h4 className="font-medium text-sm">دفعة من العميل</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (<FormItem><FormLabel>المبلغ</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={form.control} name="amountReceivedFromCustomer" render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>المبلغ</FormLabel>
+                                    <FormControl>
+                                      <Input type="number" placeholder="0" {...field} onChange={(e) => { setCustomerAmountManuallyEdited(true); field.onChange(e); }} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )} />
                                 <FormField control={form.control} name="customerPaymentReceivedBy" render={({ field }) => (
                                   <FormItem><FormLabel>المورد (المستلم)</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}>
@@ -1073,6 +1295,21 @@ function TransactionsLogPageContent() {
                               <FormField control={form.control} name="dateReceivedFromCustomer" render={({ field }) => (
                                 <FormItem className="flex flex-col"><FormLabel>تاريخ الاستلام من العميل</FormLabel><Popover modal={false} open={isDateReceivedPopoverOpen} onOpenChange={setIsDateReceivedPopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsDateReceivedPopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                               )} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted-foreground">
+                              <div>المقترح لهذه الدفعة: <b className="text-foreground">{(((watchedValues.actualQuantityDeducted || 0) + (watchedValues.otherQuantityDeducted || 0)) * (watchedValues.sellingPrice || 0)).toFixed(2)}</b></div>
+                              <div>المستلم سابقاً لنفس المفتاح: <b className="text-foreground">{opReceivedFromCustomerOther.toFixed(2)}</b></div>
+                              <div>المتبقي لنفس المفتاح (بعد هذه الدفعة): <b className="text-foreground">{Math.max(0, (((opDeductedQtyOther + ((watchedValues.actualQuantityDeducted || 0) + (watchedValues.otherQuantityDeducted || 0))) * (watchedValues.sellingPrice || 0)) - opReceivedFromCustomerOther - (watchedValues.amountReceivedFromCustomer || 0))).toFixed(2)}</b></div>
+                            </div>
+                            <div className="mt-2">
+                              {!customerAmountManuallyEdited && (
+                                <div className="text-xs">المبلغ يتم حسابه تلقائياً من الكمية المخصومة × سعر البيع. يمكنك التعديل يدويًا إذا لزم.</div>
+                              )}
+                              {customerAmountManuallyEdited && (
+                                <Button type="button" size="sm" variant="secondary" onClick={() => { setCustomerAmountManuallyEdited(false); }}>
+                                  العودة للحساب التلقائي
+                                </Button>
+                              )}
                             </div>
                           </div>
 
@@ -1123,15 +1360,35 @@ function TransactionsLogPageContent() {
                             <FormItem className="flex flex-col"><FormLabel>تاريخ العملية (تخزين)</FormLabel><Popover modal={false} open={isTransactionDatePopoverOpen} onOpenChange={setIsTransactionDatePopoverOpen}><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("w-full justify-start text-right font-normal", !field.value && "text-muted-foreground")}><CalendarIcon className="ml-2 h-4 w-4" />{field.value ? format(field.value, "PPP", { locale: ar }) : <span>اختر تاريخ</span>}</Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="center"><Calendar mode="single" selected={field.value} onSelect={(date) => { field.onChange(date || undefined); setIsTransactionDatePopoverOpen(false); }} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem>
                           )} />
                           <FormField control={form.control} name="actualQuantityDeducted" render={({ field }) => (
-                            <FormItem><FormLabel>الكمية الفعلية المخصومة</FormLabel><FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage /></FormItem>
+                            <FormItem>
+                              <FormLabel>الكمية الفعلية المخصومة</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="0" {...field} onChange={(e) => { field.onChange(e); setLastEditedDeductField('actual'); }} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
                           )} />
+                          <FormField control={form.control} name="otherQuantityDeducted" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>الكمية المخصومة الأخرى</FormLabel>
+                              <FormControl>
+                                <Input type="number" placeholder="0" {...field} onChange={(e) => { field.onChange(e); setLastEditedDeductField('other'); }} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )} />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2 text-xs text-muted-foreground">
+                          <div>إجمالي الكمية لهذا المفتاح: <b className="text-foreground">{totalAssignedForKey.toFixed(3)}</b> طن</div>
+                          <div>المخصوم سابقاً: <b className="text-foreground">{opDeductedQtyOther.toFixed(3)}</b> طن</div>
+                          <div>المتبقي قبل هذا الإدخال: <b className="text-foreground">{Math.max(0, remainingQtyForKeyBeforeCurrent).toFixed(3)}</b> طن</div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                            <FormItem>
                              <Label>الكمية المتبقية</Label>
                              <Input 
                                type="number" 
-                               value={((watchedValues.quantity || 0) - (watchedValues.actualQuantityDeducted || 0)).toFixed(2)} 
+                               value={remainingQtyForKeyAfterCurrent.toFixed(2)} 
                                readOnly 
                                className="font-bold bg-blue-50" 
                              />
@@ -1140,7 +1397,7 @@ function TransactionsLogPageContent() {
                              <Label>المبلغ المتبقي</Label>
                              <Input 
                                type="number" 
-                               value={(((watchedValues.quantity || 0) - (watchedValues.actualQuantityDeducted || 0)) * (watchedValues.purchasePrice || 0)).toFixed(2)} 
+                               value={(remainingQtyForKeyAfterCurrent * (watchedValues.purchasePrice || 0)).toFixed(2)} 
                                readOnly 
                                className="font-bold bg-green-50" 
                              />
@@ -1380,6 +1637,64 @@ function TransactionsLogPageContent() {
               </Form>
             </DialogContent>
           </Dialog>
+      {/* Operation Report Dialog */}
+      <Dialog open={isOpReportOpen} onOpenChange={setIsOpReportOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>تقرير العملية</DialogTitle>
+            <DialogDescription>تفاصيل الحركة والكميات والماليات للعملية المختارة</DialogDescription>
+          </DialogHeader>
+          {reportTx && (
+            <div className="space-y-4 max-h-[70vh] overflow-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div><Label>رقم العملية</Label><div className="font-medium">{reportTx.operationNumber || '-'}</div></div>
+                <div><Label>مفتاح العملية</Label><div className="font-medium">{reportTx.operationKey || '-'}</div></div>
+                <div><Label>المورد</Label><div className="font-medium">{reportTx.supplierName}</div></div>
+                <div><Label>العميل</Label><div className="font-medium">{reportTx.customerName || '-'}</div></div>
+                <div><Label>الصنف/النوع</Label><div className="font-medium">{reportTx.category || '-'} {reportTx.variety ? `/ ${reportTx.variety}` : ''}</div></div>
+                <div><Label>الكمية</Label><div className="font-medium">{reportTx.quantity} طن</div></div>
+              </div>
+              <div className="p-3 border rounded">
+                <h4 className="font-medium mb-2">حركة الكمية</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>الكمية المخصومة الفعلية: <b>{(reportTx.actualQuantityDeducted || 0).toFixed(2)}</b> طن</div>
+                  <div>الكمية المخصومة الأخرى: <b>{(reportTx.otherQuantityDeducted || 0).toFixed(2)}</b> طن</div>
+                  <div>الكمية المتبقية: <b>{(reportTx.remainingQuantity || 0).toFixed(2)}</b> طن</div>
+                  <div>المبلغ المتبقي: <b>{(reportTx.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                </div>
+              </div>
+              <div className="p-3 border rounded">
+                <h4 className="font-medium mb-2">الحركة المالية</h4>
+                <div className="text-sm space-y-1">
+                  <div>إجمالي الشراء: <b>{(reportTx.totalPurchasePrice || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>مدفوع للمصنع: <b>{(reportTx.amountPaidToFactory || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  {(reportTx.factoryPayments && reportTx.factoryPayments.length > 0) && (
+                    <div className="mt-2">
+                      <div className="font-medium mb-1">تفصيل دفعات المصنع:</div>
+                      <ul className="list-disc pr-6 space-y-1">
+                        {reportTx.factoryPayments.map((p, i) => (
+                          <li key={i}>
+                            {p.date ? format(p.date, 'yyyy-MM-dd') : '-'} — {p.amount?.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })} — {p.method || '-'} — {p.paidBy || '-'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div>إجمالي البيع: <b>{(reportTx.totalSellingPrice || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>المستلم من المورد: <b>{(reportTx.amountReceivedFromSupplier || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>المستلم من العميل: <b>{(reportTx.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>صافي الربح: <b className={reportTx.profit >= 0 ? 'text-green-700' : 'text-red-700'}>{(reportTx.profit || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">إغلاق</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

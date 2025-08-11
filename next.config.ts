@@ -30,6 +30,16 @@ const nextConfig: NextConfig = {
         destination: '/customers-log',
         permanent: true,
       },
+      {
+        source: '/transfers-report',
+        destination: '/transactions-log',
+        permanent: true,
+      },
+      {
+        source: '/transfers-report/:path*',
+        destination: '/transactions-log',
+        permanent: true,
+      },
     ];
   },
   images: {

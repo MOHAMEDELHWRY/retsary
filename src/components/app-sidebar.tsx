@@ -48,6 +48,7 @@ export function AppSidebar() {
     { href: '/suppliers-report', label: 'تقرير الموردين', icon: Users, isActive: () => pathname === '/suppliers-report' },
     { href: '/suppliers-log', label: 'سجل الموردين', icon: Users, isActive: () => pathname === '/suppliers-log' },
   { href: '/customers-log', label: 'سجل العملاء', icon: Users, isActive: () => pathname === '/customers-log' },
+  { href: '/customers-report', label: 'تقرير العملاء', icon: Users, isActive: () => pathname === '/customers-report' },
   
     { href: '/inventory-report', label: 'تقرير المخزون التراكمي', icon: Package, isActive: () => pathname === '/inventory-report' },
     { href: '/inventory-movement', label: 'سجل حركات المخزون', icon: Activity, isActive: () => pathname === '/inventory-movement' },
@@ -56,7 +57,7 @@ export function AppSidebar() {
     { href: '/factory-report', label: 'تقرير المصنع', icon: Factory, isActive: () => pathname === '/factory-report' },
     { href: '/reports', label: 'تقارير المبيعات', icon: LineChart, isActive: () => pathname === '/reports' },
     { href: '/expenses-report', label: 'تقرير المصروفات', icon: Wallet, isActive: () => pathname === '/expenses-report' },
-    { href: '/transfers-report', label: 'تقرير التحويلات', icon: ArrowRightLeft, isActive: () => pathname === '/transfers-report' },
+  // { href: '/transfers-report', label: 'تقرير التحويلات', icon: ArrowRightLeft, isActive: () => pathname === '/transfers-report' }, // deprecated
   ];
 
   return (

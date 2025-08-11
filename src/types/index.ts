@@ -9,6 +9,7 @@
 export type Transaction = {
   id: string;
   operationNumber?: string; // رقم العملية
+  operationKey?: string; // مفتاح عملية ديناميكي (مثال: 42.5/اسم)
   customerName?: string; // اسم العميل
   date: Date;
   executionDate?: Date;
@@ -31,6 +32,13 @@ export type Transaction = {
   amountPaidToFactory: number;
   paidBy?: string; // من قام بالدفع للمصنع
   datePaidToFactory?: Date; // تاريخ الدفع للمصنع
+  // دفعات متعددة للمصنع
+  factoryPayments?: Array<{
+    amount: number;
+    paidBy?: string;
+    date?: Date;
+    method?: 'نقدي' | 'تحويل بنكي' | 'إيداع';
+  }>;
 
   amountReceivedFromSupplier: number;
   receivedBy?: string; // من استلم المبلغ من المورد
@@ -54,6 +62,7 @@ export type Transaction = {
   
   // حقول إدارة المخزون للصنف السائب
   actualQuantityDeducted?: number; // الكمية الفعلية المخصومة
+  otherQuantityDeducted?: number; // الكمية المخصومة الأخرى
   remainingQuantity?: number; // الكمية المتبقية
   remainingAmount?: number; // المبلغ المتبقي
   transactionDate?: Date; // تاريخ العملية (منفصل عن تاريخ الإدخال)

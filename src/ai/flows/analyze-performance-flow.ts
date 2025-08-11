@@ -7,7 +7,7 @@
  * - PerformanceAnalysisOutput - The return type for the analyzePerformance function.
  */
 
-import {ai} from '@/ai/genkit';
+import {getAI} from '@/ai/genkit';
 import {z} from 'zod';
 
 const TransactionSchemaForAI = z.object({
@@ -58,11 +58,13 @@ export async function analyzePerformance(input: PerformanceAnalysisInput): Promi
   }
 }
 
-const prompt = ai.definePrompt({
-  name: 'analyzePerformancePrompt',
-  input: {schema: PerformanceAnalysisInputSchema},
-  output: {schema: PerformanceAnalysisOutputSchema},
-  prompt: `أنت محلل مالي خبير. مهمتك هي تحليل بيانات المعاملات المالية التالية وتقديم تقرير موجز وذكي باللغة العربية.
+export async function analyzePerformanceFlow(input: PerformanceAnalysisInput): Promise<PerformanceAnalysisOutput> {
+  const ai = getAI();
+  const prompt = ai.definePrompt({
+    name: 'analyzePerformancePrompt',
+    input: {schema: PerformanceAnalysisInputSchema},
+    output: {schema: PerformanceAnalysisOutputSchema},
+    prompt: `أنت محلل مالي خبير. مهمتك هي تحليل بيانات المعاملات المالية التالية وتقديم تقرير موجز وذكي باللغة العربية.
 
 يجب أن يكون تحليلك على شكل نقاط واضحة باستخدام Markdown، وأن يغطي الجوانب التالية:
 
@@ -80,25 +82,16 @@ const prompt = ai.definePrompt({
 \`\`\`
 
 اكتب التقرير بالكامل باللغة العربية.`,
-});
+  });
 
-
-export const analyzePerformanceFlow = ai.defineFlow(
-  {
-    name: 'analyzePerformanceFlow',
-    inputSchema: PerformanceAnalysisInputSchema,
-    outputSchema: PerformanceAnalysisOutputSchema,
-  },
-  async input => {
-    try {
-      const {output} = await prompt(input);
-      if (!output) {
-        return { analysis: "لم يتمكن الذكاء الاصطناعي من إنشاء تحليل. قد تكون هناك مشكلة مؤقتة. يرجى المحاولة مرة أخرى لاحقًا." };
-      }
-      return output;
-    } catch (error) {
-      console.error("AI analyzePerformanceFlow error:", error);
-      return { analysis: "حدث خطأ أثناء تحليل البيانات بواسطة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى لاحقًا." };
+  try {
+    const {output} = await prompt(input);
+    if (!output) {
+      return { analysis: "لم يتمكن الذكاء الاصطناعي من إنشاء تحليل. قد تكون هناك مشكلة مؤقتة. يرجى المحاولة مرة أخرى لاحقًا." };
     }
+    return output;
+  } catch (error) {
+    console.error("AI analyzePerformanceFlow error:", error);
+    return { analysis: "حدث خطأ أثناء تحليل البيانات بواسطة الذكاء الاصطناعي. يرجى المحاولة مرة أخرى لاحقًا." };
   }
-);
+}
