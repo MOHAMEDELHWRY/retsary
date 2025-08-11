@@ -8,6 +8,26 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  env: {
+    // Prevent OpenTelemetry SDK from trying to load optional exporters
+    OTEL_TRACES_EXPORTER: 'none',
+  },
+  webpack: (config) => {
+    // Silence optional OpenTelemetry exporter resolution warnings
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@opentelemetry/exporter-jaeger': false as any,
+    } as any;
+
+    // Ignore noisy warnings from handlebars about require.extensions
+    // These are harmless in our usage and safe to ignore.
+    (config.ignoreWarnings ||= []).push({
+      message: /require\.extensions is not supported by webpack/,
+    } as any);
+
+    return config;
+  },
   async redirects() {
     return [
       {
