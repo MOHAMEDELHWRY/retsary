@@ -159,6 +159,11 @@ function TransactionsLogPageContent() {
   const [searchTerm, setSearchTerm] = useState(customerQuery || '');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  // Additional filters: quantity + details (category/variety)
+  const [minQuantity, setMinQuantity] = useState('');
+  const [maxQuantity, setMaxQuantity] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterVariety, setFilterVariety] = useState('');
   
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -195,11 +200,27 @@ function TransactionsLogPageContent() {
   const [isEndDatePopoverOpen, setIsEndDatePopoverOpen] = useState(false);
   const [isDatePaidToFactoryPopoverOpen, setIsDatePaidToFactoryPopoverOpen] = useState(false);
   const [isDateReceivedFromSupplierPopoverOpen, setIsDateReceivedFromSupplierPopoverOpen] = useState(false);
-  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  // Multi-selection state
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [hoverSelectMode, setHoverSelectMode] = useState(false);
   const [factoryPaymentDatePopoverOpen, setFactoryPaymentDatePopoverOpen] = useState<Record<number, boolean>>({});
   const [isOpReportOpen, setIsOpReportOpen] = useState(false);
   const [reportTx, setReportTx] = useState<Transaction | null>(null);
   const handleOpenOperationReport = (t: Transaction) => { setReportTx(t); setIsOpReportOpen(true); };
+
+  const toggleRowSelection = (id: string) => {
+    setSelectedRowIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const addRowSelection = (id: string) => {
+    setSelectedRowIds(prev => (prev.has(id) ? prev : new Set([...Array.from(prev), id])));
+  };
+
+  const clearSelection = () => setSelectedRowIds(new Set());
 
   useEffect(() => {
     if (customerQuery) {
@@ -691,7 +712,7 @@ function TransactionsLogPageContent() {
         (t.customerName && t.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (t.governorate && t.governorate.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (t.city && t.city.toLowerCase().includes(searchTerm.toLowerCase()));
-      
+
       let dateMatch = true;
       if (startDate || endDate) {
         const targetDate = t.date;
@@ -699,9 +720,64 @@ function TransactionsLogPageContent() {
         else if (startDate) dateMatch = targetDate >= startDate;
         else if (endDate) dateMatch = targetDate <= endDate;
       }
-      return searchMatch && dateMatch;
+
+      // Quantity range
+      const q = Number(t.quantity) || 0;
+      const minQ = minQuantity.trim() === '' ? -Infinity : parseFloat(minQuantity);
+      const maxQ = maxQuantity.trim() === '' ? Infinity : parseFloat(maxQuantity);
+      const quantityMatch = q >= minQ && q <= maxQ;
+
+      // Details filters
+      const categoryMatch = filterCategory ? (t.category || '').trim() === filterCategory : true;
+      const varietyMatch = filterVariety ? (t.variety || '').trim() === filterVariety : true;
+
+      return searchMatch && dateMatch && quantityMatch && categoryMatch && varietyMatch;
     }).sort((a,b) => b.date.getTime() - a.date.getTime());
-  }, [transactions, searchTerm, startDate, endDate]);
+  }, [transactions, searchTerm, startDate, endDate, minQuantity, maxQuantity, filterCategory, filterVariety]);
+
+  // Map each unique (departureDate month) to an index to assign stable colors
+  const monthIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let i = 0;
+    for (const t of filteredAndSortedTransactions) {
+      const d = t.departureDate || t.date; // fallback to main date if no departure
+      const key = `${t.departureDate ? 'dep' : 'main'}-${d.getFullYear()}-${d.getMonth()}`;
+      if (!map.has(key)) map.set(key, i++);
+    }
+    return map;
+  }, [filteredAndSortedTransactions]);
+
+  const monthColorClasses = [
+    'bg-blue-50',
+    'bg-green-50',
+    'bg-amber-50',
+    'bg-purple-50',
+    'bg-pink-50',
+    'bg-slate-50',
+  ];
+
+  const getRowColorClass = (t: Transaction) => {
+    const d = t.departureDate || t.date;
+    const key = `${t.departureDate ? 'dep' : 'main'}-${d.getFullYear()}-${d.getMonth()}`;
+    const idx = monthIndexMap.get(key) ?? 0;
+    return monthColorClasses[idx % monthColorClasses.length];
+  };
+
+  // Build legend metadata
+  const monthLegend = useMemo(() => {
+    const seen = new Set<string>();
+    const items: { key: string; label: string; className: string }[] = [];
+    for (const t of filteredAndSortedTransactions) {
+      const d = t.departureDate || t.date;
+      const key = `${t.departureDate ? 'dep' : 'main'}-${d.getFullYear()}-${d.getMonth()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const label = t.departureDate ? format(new Date(d.getFullYear(), d.getMonth(), 1), 'MMMM yyyy', { locale: ar }) : `بدون تاريخ خروج (${format(new Date(d.getFullYear(), d.getMonth(), 1), 'MMMM yyyy', { locale: ar })})`;
+      const idx = monthIndexMap.get(key) ?? 0;
+      items.push({ key, label, className: monthColorClasses[idx % monthColorClasses.length] });
+    }
+    return items;
+  }, [filteredAndSortedTransactions, monthIndexMap]);
 
   const totalPurchasePriceDisplay = (watchedValues.quantity || 0) * (watchedValues.purchasePrice || 0);
   const totalSellingPriceDisplay = (watchedValues.sellingPrice || 0) > 0 ? (watchedValues.quantity || 0) * (watchedValues.sellingPrice || 0) : 0;
@@ -846,7 +922,68 @@ function TransactionsLogPageContent() {
                       {(startDate || endDate) && (<Button variant="ghost" onClick={clearDateFilter} className="text-destructive">مسح الفلتر</Button>)}
                     </div>
                   </div>
+                  {/* Quantity & Details Filters */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 w-full">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="أدنى كمية"
+                      value={minQuantity}
+                      onChange={(e) => setMinQuantity(e.target.value)}
+                      className="text-xs"
+                    />
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="أقصى كمية"
+                      value={maxQuantity}
+                      onChange={(e) => setMaxQuantity(e.target.value)}
+                      className="text-xs"
+                    />
+                    <Select value={filterCategory} onValueChange={(v) => setFilterCategory(v === 'ALL' ? '' : v)}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="الصنف" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">كل الأصناف</SelectItem>
+                        {categoryOptions.map(c => <SelectItem key={`fc-${c}`} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={filterVariety} onValueChange={(v) => setFilterVariety(v === 'ALL' ? '' : v)}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="النوع" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">كل الأنواع</SelectItem>
+                        {varietyOptions.map(v => <SelectItem key={`fv-${v}`} value={v}>{v}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-xs text-destructive"
+                      onClick={() => { setMinQuantity(''); setMaxQuantity(''); setFilterCategory(''); setFilterVariety(''); }}
+                    >مسح فلاتر الكمية</Button>
+                  </div>
+                  {/* Selection toolbar */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs mt-2 md:mt-0">
+                    <Button type="button" variant={hoverSelectMode ? 'secondary' : 'outline'} size="sm" onClick={() => setHoverSelectMode(m => !m)}>
+                      {hoverSelectMode ? 'إيقاف تحديد بالمرور' : 'تحديد بالمرور'}
+                    </Button>
+                    {selectedRowIds.size > 0 && (
+                      <>
+                        <span className="px-2 py-1 rounded bg-muted">المحدد: {selectedRowIds.size}</span>
+                        <Button type="button" size="sm" variant="ghost" onClick={clearSelection} className="text-destructive">مسح التحديد</Button>
+                      </>
+                    )}
+                  </div>
               </div>
+              {monthLegend.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-4 text-xs">
+                  {monthLegend.map(m => (
+                    <div key={m.key} className="flex items-center gap-1">
+                      <span className={cn('inline-block w-4 h-4 rounded border', m.className)} />
+                      <span>{m.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
           </CardHeader>
           <CardContent className="overflow-auto max-h-[70vh]">
             <Table>
@@ -888,13 +1025,17 @@ function TransactionsLogPageContent() {
                 </TableRow>
               </TableHeader>
                 <TableBody>
-                  {filteredAndSortedTransactions.map((t, index) => (
-                    <TableRow 
-                      key={t.id}
-                      onClick={() => setSelectedRowId(t.id)}
-                      data-state={selectedRowId === t.id ? 'selected' : 'unselected'}
-                    >
-                      <TableCell className="sticky right-0 bg-card z-20">{filteredAndSortedTransactions.length - index}</TableCell>
+                  {filteredAndSortedTransactions.map((t, index) => {
+                    const isSelected = selectedRowIds.has(t.id);
+                    return (
+                      <TableRow
+                        key={t.id}
+                        onClick={(e) => { e.stopPropagation(); toggleRowSelection(t.id); }}
+                        onMouseEnter={() => { if (hoverSelectMode) addRowSelection(t.id); }}
+                        data-state={isSelected ? 'selected' : 'unselected'}
+                        className={cn(getRowColorClass(t), 'hover:brightness-95 cursor-pointer', isSelected && 'ring-2 ring-emerald-400')}
+                      >
+                        <TableCell className={cn('sticky right-0 z-20', getRowColorClass(t), isSelected && 'ring-2 ring-emerald-400')}>{filteredAndSortedTransactions.length - index}</TableCell>
                       <TableCell>{t.operationNumber || '-'}</TableCell>
                       <TableCell>{t.customerName || '-'}</TableCell>
                       <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
@@ -996,8 +1137,9 @@ function TransactionsLogPageContent() {
                           </AlertDialog>
                         </div>
                       </TableCell>
-                    </TableRow>
-                  ))}
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
           </CardContent>
@@ -1695,6 +1837,111 @@ function TransactionsLogPageContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Preview Attachment Dialog */}
+      <Dialog open={isPreviewOpen} onOpenChange={(open) => { if (!open) { setIsPreviewOpen(false); } }}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>معاينة المرفقات</DialogTitle>
+            <DialogDescription>
+              تصفح المرفقات (عدد: {previewAttachments?.length || 0})
+            </DialogDescription>
+          </DialogHeader>
+          {previewAttachments && previewAttachments.length > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium truncate flex-1" title={previewAttachments[currentPreviewIndex]?.name}>
+                  {previewAttachments[currentPreviewIndex]?.name}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={handlePreviousAttachment}>السابق</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={handleNextAttachment}>التالي</Button>
+                  {previewAttachments[currentPreviewIndex]?.url && (
+                    <a
+                      href={previewAttachments[currentPreviewIndex]?.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs underline text-blue-600"
+                    >فتح في تبويب</a>
+                  )}
+                </div>
+              </div>
+              <div className="border rounded-lg p-3 bg-muted relative">
+                {(() => {
+                  const att = previewAttachments[currentPreviewIndex];
+                  if (!att) return null;
+                  if (att.type === 'image') {
+                    return (
+                      <div className="flex flex-col items-center">
+                        {imageLoading && <div className="text-xs mb-2">جاري التحميل...</div>}
+                        {imageLoadError && <div className="text-xs text-red-600 mb-2">حدث خطأ في تحميل الصورة. <Button size="sm" variant="secondary" onClick={() => { setImageLoadError(false); setRetryCount(r => r + 1); setImageLoading(true); }}>إعادة المحاولة</Button></div>}
+                        <img
+                          key={att.url + retryCount}
+                          src={att.url}
+                          className="max-h-[65vh] object-contain rounded shadow"
+                          onLoad={() => { setImageLoading(false); setImageLoadError(false); }}
+                          onError={() => { setImageLoading(false); setImageLoadError(true); }}
+                          alt={att.name}
+                        />
+                      </div>
+                    );
+                  }
+                  if (att.type === 'pdf') {
+                    return (
+                      <iframe
+                        src={att.url + '#toolbar=0'}
+                        className="w-full h-[70vh] rounded bg-white"
+                      />
+                    );
+                  }
+                  return (
+                    <div className="text-center text-sm">
+                      نوع الملف غير مدعوم للمعاينة المباشرة. يمكنك تنزيله:
+                      <div className="mt-2">
+                        <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">تنزيل / فتح</a>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                <span>({currentPreviewIndex + 1} / {previewAttachments.length})</span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      // trigger replace file flow
+                      const input = document.getElementById('replace-file-input') as HTMLInputElement | null;
+                      input?.click();
+                    }}
+                  >استبدال</Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      const att = previewAttachments[currentPreviewIndex];
+                      if (att && window.confirm('حذف هذا المرفق؟')) {
+                        handleDeleteExistingAttachment(att.id || att.url, att.url);
+                      }
+                    }}
+                  >حذف</Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center text-sm text-muted-foreground">لا توجد مرفقات للعرض</div>
+          )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="secondary">إغلاق</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Hidden file input for replacing attachments */}
+      <input id="replace-file-input" type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={handleReplaceFile} />
     </div>
   );
 }
