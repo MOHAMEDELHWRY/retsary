@@ -12,7 +12,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Download, Calendar as CalendarIcon, Search, Info } from 'lucide-react';
+import { Download, Calendar as CalendarIcon, Search, Info, FileDown } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { cn } from '@/lib/utils';
 
 type CustomerSummary = {
@@ -20,7 +22,7 @@ type CustomerSummary = {
   totalPurchase: number; // رأس مال العميل (التكلفة الإجمالية)
   totalSales: number; // إجمالي البيع
   receivedFromCustomer: number; // مدفوعات العميل للمورد
-  receivedFromSupplier: number; // رصيد نقدي تلقاه العميل من المورد (حسب الحقل receivedBy)
+  receivedFromSupplier: number; // المستلم من المورد لصالح العميل (حسب الحقل receivedBy)
   remainingQtyAtFactory: number; // البضاعة بالمصنع (كمية)
   remainingValueAtFactory: number; // قيمة البضاعة بالمصنع
   netBalance: number; // (المستلم من العميل − إجمالي البيع) − المستلم من المورد
@@ -46,7 +48,10 @@ export default function CustomersReportPage() {
       // Search filter against customer and supplier
       if (search) {
         const s = search.toLowerCase();
-        const hit = cname.toLowerCase().includes(s) || t.supplierName.toLowerCase().includes(s) || (t.operationKey || '').toLowerCase().includes(s);
+        const hit = cname.toLowerCase().includes(s)
+          || t.supplierName.toLowerCase().includes(s)
+          || (t.operationKey || '').toLowerCase().includes(s)
+          || ((t.receivedBy || '').toLowerCase().includes(s));
         if (!hit) return false;
       }
       return true;
@@ -55,6 +60,8 @@ export default function CustomersReportPage() {
 
   const summaries = useMemo<CustomerSummary[]>(() => {
     const map = new Map<string, CustomerSummary>();
+    // لتجنب فقدان دفعات المورد التي قد لا تحتوي على اسم عميل، سنمر على "filtered" للأساسيات
+    // ثم ننسب دفعات المورد حسب receivedBy بشكل صريح.
     for (const t of filtered) {
       const key = (t.customerName || '-').trim() || '-';
       const current = map.get(key) || {
@@ -70,14 +77,39 @@ export default function CustomersReportPage() {
       current.totalPurchase += Number(t.totalPurchasePrice) || 0;
       current.totalSales += Number(t.totalSellingPrice) || 0;
       current.receivedFromCustomer += Number(t.amountReceivedFromCustomer) || 0;
-      // "دفعة من المورد" تُسجل على مستوى العملية مع حقل receivedBy (العميل)
-      // نضيف فقط المبالغ التي وُجهت لهذا العميل
-      if ((t.receivedBy || '').trim() === key) {
-        current.receivedFromSupplier += Number(t.amountReceivedFromSupplier) || 0;
-      }
+      // دفعات المورد ستُنسب لاحقاً بشكل صريح حسب receivedBy
       current.remainingQtyAtFactory += Number(t.remainingQuantity) || 0;
       current.remainingValueAtFactory += Number(t.remainingAmount) || 0;
       map.set(key, current);
+    }
+    // مرَّ على جميع العمليات ضمن نفس نطاق التاريخ/البحث لإضافة "المستلم من المورد" حسب receivedBy حتى لو لم يوجد customerName
+    for (const t of transactions) {
+      if (startDate && t.date < startDate) continue;
+      if (endDate && t.date > endDate) continue;
+      if (search) {
+        const s = search.toLowerCase();
+        const hit = (t.customerName || '').toLowerCase().includes(s)
+          || t.supplierName.toLowerCase().includes(s)
+          || (t.operationKey || '').toLowerCase().includes(s)
+          || ((t.receivedBy || '').toLowerCase().includes(s));
+        if (!hit) continue;
+      }
+      const rb = (Number(t.amountReceivedFromSupplier) || 0);
+      const rbKey = (t.receivedBy || '').trim();
+      if (rb > 0 && rbKey) {
+        const current = map.get(rbKey) || {
+          customerName: rbKey,
+          totalPurchase: 0,
+          totalSales: 0,
+          receivedFromCustomer: 0,
+          receivedFromSupplier: 0,
+          remainingQtyAtFactory: 0,
+          remainingValueAtFactory: 0,
+          netBalance: 0,
+        };
+        current.receivedFromSupplier += rb;
+        map.set(rbKey, current);
+      }
     }
     // Compute net balance for each summary
     for (const [k, s] of map) {
@@ -86,7 +118,7 @@ export default function CustomersReportPage() {
     }
     // Sort by absolute net balance desc
     return Array.from(map.values()).sort((a, b) => Math.abs(b.netBalance) - Math.abs(a.netBalance));
-  }, [filtered]);
+  }, [filtered, transactions, startDate, endDate, search]);
 
   const totals = useMemo(() => {
     const acc = {
@@ -116,7 +148,7 @@ export default function CustomersReportPage() {
       'رأس مال العميل',
       'إجمالي البيع',
       'مدفوعات العميل للمورد',
-      'رصيد نقدي من المورد (مستلم)',
+      'المستلم من المورد',
       'البضاعة بالمصنع (كمية)',
       'قيمة البضاعة بالمصنع',
       'صافي الرصيد',
@@ -155,8 +187,129 @@ export default function CustomersReportPage() {
   const detailTransactions = useMemo(() => {
     if (!detailsCustomer) return [] as typeof transactions;
     const key = detailsCustomer.trim();
-    return filtered.filter(t => ((t.customerName || '-').trim() || '-') === key);
+    const base = filtered.filter(t => ((t.customerName || '-').trim() || '-') === key);
+    // سحب دفعات المورد الموجهة لهذا العميل حتى لو لم تكن العملية باسم هذا العميل
+    // نطبق فقط مرشح التاريخ والبحث (يشمل receivedBy) دون تقييد includeEmptyCustomers حتى لا نفقد عمليات بدون اسم عميل
+    const matchesDateAndSearch = (t: typeof transactions[number]) => {
+      if (startDate && t.date < startDate) return false;
+      if (endDate && t.date > endDate) return false;
+      if (search) {
+        const s = search.toLowerCase();
+        const hit = (t.customerName || '').toLowerCase().includes(s)
+          || t.supplierName.toLowerCase().includes(s)
+          || (t.operationKey || '').toLowerCase().includes(s)
+          || ((t.receivedBy || '').toLowerCase().includes(s));
+        if (!hit) return false;
+      }
+      return true;
+    };
+    const supplierCredits = transactions.filter(t =>
+      matchesDateAndSearch(t)
+      && (Number(t.amountReceivedFromSupplier) || 0) > 0
+      && (t.receivedBy || '').trim() === key
+      && ((t.customerName || '').trim() !== key)
+    );
+    return [...base, ...supplierCredits];
   }, [detailsCustomer, filtered]);
+
+  // تحضير صفوف التفاصيل مع رصيد تراكمي (دائن - مدين)
+  const detailedWithBalance = useMemo(() => {
+    let running = 0; // يبدأ من صفر
+    // تأكد من الترتيب حسب التاريخ لتسلسل صحيح
+    const sorted = [...detailTransactions].sort((a,b) => a.date.getTime() - b.date.getTime());
+    return sorted.map(t => {
+      const saleDebit = t.totalSellingPrice || 0; // مدين من إجمالي البيع
+      const supplierDebit = (detailsCustomer && t.receivedBy && t.receivedBy.trim() === detailsCustomer.trim()) ? (t.amountReceivedFromSupplier || 0) : 0; // المستلم من المورد يُحسب كمدين
+      const debit = saleDebit + supplierDebit; // إجمالي المدين
+      const creditFromCustomer = t.amountReceivedFromCustomer || 0; // دائن من العميل
+      const credit = creditFromCustomer; // إجمالي الدائن
+      running += (credit - debit); // الرصيد التراكمي (دائن - مدين)
+      return { t, saleDebit, supplierDebit, debit, credit, creditFromCustomer, balance: running };
+    });
+  }, [detailTransactions]);
+
+  const exportCustomerDetailsPDF = () => {
+    if (!detailsCustomer) return;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const title = `تفاصيل العميل: ${detailsCustomer}`;
+    // خصائص وبيانات المستند + تلميحات اللغة إن كانت مدعومة
+    doc.setProperties({
+      title,
+      subject: 'تقرير تفاصيل العميل',
+      author: 'Retsary',
+      creator: 'Retsary App'
+    });
+    // بعض إصدارات jsPDF تدعم setLanguage / setR2L — نستعملهما إن وُجدا
+    (doc as any).setLanguage?.('ar-EG');
+    (doc as any).setR2L?.(true);
+    doc.setFont('helvetica','bold');
+  // ضع العنوان بمحاذاة يمين الصفحة
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.text(title, pageWidth - 14, 12, { align: 'right' });
+    doc.setFont('helvetica','normal');
+  // أدوات تنسيق عربية للأرقام والعملات والتاريخ
+  const fmtNumber = (n: number) => Number(n || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtCurrency = (n: number) => Number(n || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+  const fmtDate = (d: Date) => d.toLocaleDateString('ar-EG');
+    const headers = [
+      'التاريخ','الوصف','المورد','الكمية','المخصوم','المتبقي','إجمالي البيع','مدفوع من العميل','المستلم من المورد','مدين','دائن','الرصيد'
+    ];
+    const body = detailedWithBalance.map(r => [
+      fmtDate(r.t.date),
+      r.t.description || '',
+      r.t.supplierName,
+      fmtNumber(r.t.quantity || 0),
+      fmtNumber(((r.t.actualQuantityDeducted || 0) + (r.t.otherQuantityDeducted || 0))),
+      fmtNumber(r.t.remainingQuantity || 0),
+      fmtCurrency(r.saleDebit),
+      fmtCurrency(r.credit),
+      r.supplierDebit ? fmtCurrency(r.supplierDebit) : '-',
+      fmtCurrency(r.debit),
+      fmtCurrency(r.credit),
+      fmtCurrency(r.balance)
+    ]);
+    autoTable(doc, {
+      head: [headers],
+      body,
+      styles: { fontSize: 7, halign: 'right' },
+      headStyles: { halign: 'right' },
+      bodyStyles: { halign: 'right' },
+      didDrawPage: (data) => {
+        doc.setFontSize(8);
+        doc.text(`${new Date().toLocaleString('ar-EG')}`, pageWidth - data.settings.margin.left, doc.internal.pageSize.getHeight() - 4, { align: 'right' });
+      }
+    });
+    // إجماليات
+    const totals = detailedWithBalance.reduce((acc, r) => {
+      acc.debit += r.debit;
+      acc.credit += r.credit;
+      return acc;
+    }, { debit: 0, credit: 0 });
+    const finalBalance = detailedWithBalance.at(-1)?.balance || 0;
+    doc.addPage('landscape');
+    doc.setFontSize(14); doc.text('ملخص الإجماليات', pageWidth - 14, 14, { align: 'right' });
+    doc.setFontSize(10);
+    autoTable(doc, {
+      head: [['مدين إجمالي','دائن إجمالي','الرصيد النهائي (دائن - مدين)']],
+      body: [[fmtCurrency(totals.debit), fmtCurrency(totals.credit), fmtCurrency(finalBalance)]],
+      styles: { fontSize: 11, halign: 'right' },
+      headStyles: { halign: 'right' },
+      bodyStyles: { halign: 'right' }
+    });
+  const fileName = `تقرير-تفاصيل-العميل-${detailsCustomer}.pdf`;
+    doc.save(fileName);
+  // تحقق آمن من وجود دوال المشاركة قبل الاستعمال لتفادي تحذير TypeScript
+  if ('share' in navigator && typeof navigator.share === 'function' && 'canShare' in navigator && typeof (navigator as any).canShare === 'function') {
+      try {
+        const pdfBlob = doc.output('blob');
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+        const can = (navigator as any).canShare({ files: [file] });
+        if (can) {
+          (navigator as any).share({ files: [file], title: title, text: 'مشاركة تفاصيل العميل PDF' });
+        }
+      } catch { /* ignore share errors */ }
+    }
+  };
 
   return (
     <div className="container mx-auto p-4 md:p-8">
@@ -216,7 +369,7 @@ export default function CustomersReportPage() {
                 <TableHead>رأس مال العميل</TableHead>
                 <TableHead>إجمالي البيع</TableHead>
                 <TableHead>مدفوعات العميل للمورد</TableHead>
-                <TableHead>رصيد نقدي من المورد</TableHead>
+                <TableHead>المستلم من المورد</TableHead>
                 <TableHead>البضاعة بالمصنع</TableHead>
                 <TableHead>قيمة البضاعة بالمصنع</TableHead>
                 <TableHead>الحالة</TableHead>
@@ -271,23 +424,28 @@ export default function CustomersReportPage() {
       </Card>
 
       <Dialog open={!!detailsCustomer} onOpenChange={(open) => !open && setDetailsCustomer(null)}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="w-[96vw] h-[92vh] max-w-none sm:max-w-none flex flex-col">
           <DialogHeader>
             <DialogTitle>تفاصيل العميل</DialogTitle>
             <DialogDescription>عرض تفصيلي للعمليات والمدفوعات والرصيد</DialogDescription>
           </DialogHeader>
           {detailsCustomer && (
-            <div className="space-y-4 max-h-[70vh] overflow-auto">
+            <div className="space-y-4 flex-1 overflow-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div><Label>اسم العميل</Label><div className="font-medium">{detailsCustomer}</div></div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Info className="h-4 w-4" />
-                  <span>الحالة تُحسب: (مدفوعات العميل − إجمالي البيع) − رصيد نقدي من المورد</span>
+                  <span>الحالة تُحسب: (مدفوعات العميل − إجمالي البيع) − المستلم من المورد</span>
                 </div>
               </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={exportCustomerDetailsPDF}>
+                  <FileDown className="ml-2 h-4 w-4" />تصدير / مشاركة PDF
+                </Button>
+              </div>
 
-              <div className="p-3 border rounded">
-                <h4 className="font-medium mb-2">العمليات المتعلقة بالعميل</h4>
+              <div className="p-3 border rounded flex flex-col h-[calc(100%-120px)]">
+                <h4 className="font-medium mb-2 shrink-0">العمليات المتعلقة بالعميل</h4>
                 <div className="overflow-auto">
                   <Table>
                     <TableHeader>
@@ -300,11 +458,14 @@ export default function CustomersReportPage() {
                         <TableHead>المتبقي</TableHead>
                         <TableHead>إجمالي البيع</TableHead>
                         <TableHead>مدفوع من العميل</TableHead>
-                        <TableHead>مستلم من المورد</TableHead>
+                        <TableHead>المستلم من المورد</TableHead>
+                        <TableHead>مدين</TableHead>
+                        <TableHead>دائن</TableHead>
+                        <TableHead>الرصيد (تراكمي دائن - مدين)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {detailTransactions.map((t) => (
+                      {detailedWithBalance.map(({ t, saleDebit, supplierDebit, debit, credit, creditFromCustomer, balance }) => (
                         <TableRow key={t.id}>
                           <TableCell>{format(t.date, 'yyyy-MM-dd')}</TableCell>
                           <TableCell className="max-w-[200px] truncate" title={t.description}>{t.description}</TableCell>
@@ -312,12 +473,35 @@ export default function CustomersReportPage() {
                           <TableCell>{t.quantity} طن</TableCell>
                           <TableCell>{(((t.actualQuantityDeducted || 0) + (t.otherQuantityDeducted || 0))).toFixed(2)} طن</TableCell>
                           <TableCell>{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
-                          <TableCell>{(t.totalSellingPrice || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                          <TableCell>{(t.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                          <TableCell>{(t.receivedBy && t.receivedBy.trim() === (t.customerName || '').trim()) ? (t.amountReceivedFromSupplier || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                          <TableCell>{saleDebit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                          <TableCell>{creditFromCustomer.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                          <TableCell>{supplierDebit ? supplierDebit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                          <TableCell className="text-blue-700 font-medium">{debit ? debit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                          <TableCell className="text-amber-700 font-medium">{credit ? credit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                          <TableCell className={balance >= 0 ? 'font-medium text-green-700' : 'font-medium text-red-700'}>
+                            {balance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
+                    {detailedWithBalance.length > 0 && (() => {
+                      const totals = detailedWithBalance.reduce((acc, r) => {
+                        acc.debit += r.debit; // إجمالي (البيع + المستلم من المورد)
+                        acc.credit += r.credit; // إجمالي مدفوعات العميل
+                        return acc;
+                      }, { debit: 0, credit: 0 });
+                      const finalBalance = detailedWithBalance.at(-1)?.balance || 0;
+                      return (
+                        <TableFooter>
+                          <TableRow>
+                            <TableCell colSpan={9} className="font-bold text-right">الإجماليات</TableCell>
+                            <TableCell className="font-bold text-blue-700">{totals.debit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                            <TableCell className="font-bold text-amber-700">{totals.credit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                            <TableCell className={finalBalance >= 0 ? 'font-bold text-green-700' : 'font-bold text-red-700'}>{finalBalance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                          </TableRow>
+                        </TableFooter>
+                      );
+                    })()}
                   </Table>
                 </div>
               </div>

@@ -76,6 +76,15 @@ export type Transaction = {
   dateReceivedFromCustomer?: Date; // تاريخ استلام المبلغ من العميل
   paymentMethodFromCustomer?: 'نقدي' | 'تحويل بنكي' | 'إيداع' | 'شيك'; // طريقة استلام المبلغ من العميل
   customerPaymentReceivedBy?: string; // من استلم المبلغ من العميل
+  // دفعات متعددة من العميل (اختياري)
+  customerPayments?: Array<{
+    amount: number;
+    date?: Date;
+    method?: 'نقدي' | 'تحويل بنكي' | 'إيداع' | 'شيك';
+    receivedBy?: string;
+    notes?: string;
+  applied?: boolean; // تم اعتماد هذه الدفعة ودمجها في الحقل الفردي
+  }>;
 };
 
 export type Expense = {

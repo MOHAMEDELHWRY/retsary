@@ -166,6 +166,7 @@ export default function AccountingDashboard() {
   const [dateType, setDateType] = useState<'operation' | 'execution'>('operation');
   const [analysis, setAnalysis] = useState<PerformanceAnalysisOutput | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -874,6 +875,7 @@ export default function AccountingDashboard() {
   totalReceivedFromCustomers,
     totalPaidToFactory,
     supplierCapital,
+  totalCustomerBalance,
   } = useMemo(() => {
     const aggregates = transactions.reduce(
       (acc, t) => {
@@ -882,6 +884,9 @@ export default function AccountingDashboard() {
         acc.totalReceivedFromSuppliers += t.amountReceivedFromSupplier;
     acc.totalReceivedFromCustomers += t.amountReceivedFromCustomer || 0;
         acc.totalPaidToFactory += t.amountPaidToFactory;
+        // رصيد العميل لكل عملية = المستلم من العميل - إجمالي البيع - المستلم من المورد
+        const customerBalanceForTransaction = (t.amountReceivedFromCustomer || 0) - (t.totalSellingPrice || 0) - (t.amountReceivedFromSupplier || 0);
+        acc.totalCustomerBalance += customerBalanceForTransaction;
 
         const isSold = t.totalSellingPrice > 0;
         if (isSold) {
@@ -891,7 +896,7 @@ export default function AccountingDashboard() {
         }
         return acc;
       },
-  { totalSales: 0, totalPurchases: 0, remainingStockValue: 0, totalReceivedFromSuppliers: 0, totalReceivedFromCustomers: 0, totalPaidToFactory: 0, totalTaxesOnSoldItems: 0 }
+  { totalSales: 0, totalPurchases: 0, remainingStockValue: 0, totalReceivedFromSuppliers: 0, totalReceivedFromCustomers: 0, totalPaidToFactory: 0, totalTaxesOnSoldItems: 0, totalCustomerBalance: 0 }
     );
 
     const costOfGoodsSold = aggregates.totalPurchases - aggregates.remainingStockValue;
@@ -904,9 +909,30 @@ export default function AccountingDashboard() {
   totalReceivedFromCustomers: aggregates.totalReceivedFromCustomers,
       totalPaidToFactory: aggregates.totalPaidToFactory,
       supplierCapital: aggregates.totalReceivedFromCustomers - aggregates.totalPaidToFactory,
+      totalCustomerBalance: aggregates.totalCustomerBalance,
       profitFromTransactions: profitBeforeExpenses,
     };
   }, [transactions]);
+
+  // إجمالي المشتريات (المخصومة فعليًا) و المبلغ المتبقي والقيمة الأصلية
+  const { totalDeductedPurchases, totalRemainingAmount, purchaseEquationValid } = useMemo(() => {
+    let deducted = 0;
+    let remaining = 0;
+    for (const t of transactions) {
+      const actualDeductedQty = (t.actualQuantityDeducted || 0);
+      const deductedAmount = actualDeductedQty * (t.purchasePrice || 0);
+      deducted += deductedAmount;
+      // استخدم الحقل المخزن إن وجد وإلا احسبه
+      const remAmount = (typeof t.remainingAmount === 'number')
+        ? t.remainingAmount
+        : ((t.quantity || 0) - actualDeductedQty) * (t.purchasePrice || 0);
+      remaining += remAmount;
+    }
+    const equationValid = Math.abs((deducted + remaining) - totalPurchases) < 0.01; // tolerance 1 قرش
+    return { totalDeductedPurchases: deducted, totalRemainingAmount: remaining, purchaseEquationValid: equationValid };
+  }, [transactions, totalPurchases]);
+  // رأس المال الدائر = المبلغ المتبقي + إجمالي رصيد العميل
+  const workingCapital = useMemo(() => totalRemainingAmount + totalCustomerBalance, [totalRemainingAmount, totalCustomerBalance]);
   
   const totalExpenses = useMemo(() => expenses.reduce((acc, e) => acc + e.amount, 0), [expenses]);
   const totalProfit = profitFromTransactions - totalExpenses;
@@ -920,6 +946,57 @@ export default function AccountingDashboard() {
     });
     return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).reverse();
   }, [transactions]);
+
+  // إحصائيات التدقيق
+  const auditStats = useMemo(() => {
+    const count = transactions.length;
+    if (!count) return { count: 0, totalPurchase: 0, totalQuantity: 0, min: 0, max: 0, zeroPurchases: [], duplicates: [], invalid: [] as string[], avgPurchase: 0 };
+    let totalPurchase = 0; let totalQuantity = 0; let min = Infinity; let max = -Infinity; const zeroPurchases: string[] = []; const invalid: string[] = [];
+    const opMap = new Map<string, number>();
+    transactions.forEach(t => {
+      const tp = Number(t.totalPurchasePrice) || 0;
+      const qty = Number(t.quantity) || 0;
+      totalPurchase += tp; totalQuantity += qty;
+      if (tp < min) min = tp; if (tp > max) max = tp;
+      if (!tp) zeroPurchases.push(t.id + (t.operationNumber ? `(${t.operationNumber})` : ''));
+      if (!isFinite(tp) || tp < 0) invalid.push(t.id);
+      if (t.operationNumber) opMap.set(t.operationNumber, (opMap.get(t.operationNumber) || 0) + 1);
+    });
+    const duplicates = Array.from(opMap.entries()).filter(([,c]) => c > 1).map(([op,c]) => `${op} x${c}`);
+    if (min === Infinity) min = 0; if (max === -Infinity) max = 0;
+    const avgPurchase = totalPurchase / count;
+    return { count, totalPurchase, totalQuantity, min, max, zeroPurchases, duplicates, invalid, avgPurchase };
+  }, [transactions]);
+
+  const exportAuditCSV = () => {
+    const headers = ['البند','القيمة'];
+    const rows = [
+      ['عدد العمليات', auditStats.count],
+      ['إجمالي المشتريات', auditStats.totalPurchase],
+      ['إجمالي الكمية', auditStats.totalQuantity],
+      ['أقل إجمالي شراء', auditStats.min],
+      ['أعلى إجمالي شراء', auditStats.max],
+      ['المتوسط', auditStats.avgPurchase.toFixed(2)],
+      ['عمليات شراء صفر', auditStats.zeroPurchases.length],
+      ['عمليات مكررة (رقم العملية)', auditStats.duplicates.length],
+      ['سجلات غير صالحة', auditStats.invalid.length],
+    ];
+    const detailSection = [
+      '',
+      'تفاصيل الشراء صفر',
+      ...auditStats.zeroPurchases,
+      '',
+      'تفاصيل المكررات',
+      ...auditStats.duplicates,
+      '',
+      'تفاصيل غير صالحة',
+      ...auditStats.invalid,
+    ];
+    const csv = '\uFEFF' + [headers.join(','), ...rows.map(r=>r.join(',')), ...detailSection].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'audit-stats.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
   
   const handleAnalyzePerformance = async () => {
     if (transactions.length === 0) {
@@ -1019,6 +1096,7 @@ export default function AccountingDashboard() {
           <Button variant="outline" onClick={() => handleOpenExpenseDialog(null)}><MinusCircle className="ml-2 h-4 w-4" />إضافة مصروف</Button>
           <Button variant="outline" asChild><Link href="/inventory-report"><Package className="ml-2 h-4 w-4" />تقرير المخزون</Link></Button>
           <Button variant="outline" onClick={handleAnalyzePerformance}><Wand2 className="ml-2 h-4 w-4" />تحليل الأداء</Button>
+          <Button variant="outline" onClick={()=>setIsAuditOpen(true)}><Search className="ml-2 h-4 w-4" />تدقيق</Button>
         </div>
       </header>
 
@@ -1595,7 +1673,7 @@ export default function AccountingDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">رأس مال المورد</CardTitle>
+            <CardTitle className="text-sm font-medium">صافى التدفق النقدى</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -1605,9 +1683,63 @@ export default function AccountingDashboard() {
             <p className="text-xs text-muted-foreground mt-1">المعادلة: المستلم من العملاء - المدفوع للمصنع</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">رأس المال الدائر</CardTitle>
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={"text-2xl font-bold " + (workingCapital < 0 ? 'text-destructive' : 'text-success')}>
+              {workingCapital.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">المبلغ المتبقي + إجمالي رصيد العميل</p>
+          </CardContent>
+        </Card>
   <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المستلم من العملاء</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-success">{totalReceivedFromCustomers.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المدفوع للمصنع</CardTitle><Factory className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-primary">{totalPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المشتريات</CardTitle><ShoppingCart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{totalPurchases.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي المشتريات (المخصومة)</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {totalDeductedPurchases.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">الكمية المخصومة × سعر الشراء</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">المبلغ المتبقي</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {totalRemainingAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">قيمة الكمية المتبقية بالمخزون</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">القيمة الإجمالية للمشتريات</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {totalPurchases.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              المخصوم + المتبقي = إجمالي المشتريات
+              {purchaseEquationValid ? (
+                <span className="ml-1 text-success">✔</span>
+              ) : (
+                <span className="ml-1 text-destructive" title="الفروق تتجاوز 0.01">✖</span>
+              )}
+            </p>
+          </CardContent>
+        </Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المبيعات</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
         <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">صافي الربح (بعد المصروفات)</CardTitle><LineChart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{totalProfit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div><p className="text-xs text-muted-foreground">الربح {profitFromTransactions.toLocaleString('ar-EG', {style:'currency', currency: 'EGP'})} - المصروفات {totalExpenses.toLocaleString('ar-EG', {style:'currency', currency: 'EGP'})}</p></CardContent></Card>
       </div>
@@ -1893,6 +2025,57 @@ export default function AccountingDashboard() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* حوار التدقيق */}
+      <Dialog open={isAuditOpen} onOpenChange={setIsAuditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>تدقيق البيانات</DialogTitle>
+            <DialogDescription>مراجعة سريعة لإجمالي المشتريات والعمليات.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-y-1">
+              <span className="text-muted-foreground">عدد العمليات</span><span className="font-medium text-right">{auditStats.count}</span>
+              <span className="text-muted-foreground">إجمالي المشتريات</span><span className="font-medium text-right">{auditStats.totalPurchase.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
+              <span className="text-muted-foreground">إجمالي الكمية</span><span className="font-medium text-right">{auditStats.totalQuantity.toLocaleString('ar-EG')}</span>
+              <span className="text-muted-foreground">أقل إجمالي شراء</span><span className="font-medium text-right">{auditStats.min.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
+              <span className="text-muted-foreground">أعلى إجمالي شراء</span><span className="font-medium text-right">{auditStats.max.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
+              <span className="text-muted-foreground">متوسط إجمالي الشراء</span><span className="font-medium text-right">{auditStats.avgPurchase.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
+              <span className="text-muted-foreground">عمليات شراء صفر</span><span className="font-medium text-right">{auditStats.zeroPurchases.length}</span>
+              <span className="text-muted-foreground">مكررات رقم عملية</span><span className="font-medium text-right">{auditStats.duplicates.length}</span>
+              <span className="text-muted-foreground">سجلات غير صالحة</span><span className="font-medium text-right">{auditStats.invalid.length}</span>
+            </div>
+            {(auditStats.zeroPurchases.length>0) && (
+              <details className="bg-muted/40 rounded p-2">
+                <summary className="cursor-pointer font-medium">تفاصيل الشراء صفر ({auditStats.zeroPurchases.length})</summary>
+                <ul className="list-disc pr-5 mt-2 max-h-40 overflow-auto space-y-1">
+                  {auditStats.zeroPurchases.map(id=> <li key={id} className="truncate" title={id}>{id}</li>)}
+                </ul>
+              </details>
+            )}
+            {(auditStats.duplicates.length>0) && (
+              <details className="bg-muted/40 rounded p-2">
+                <summary className="cursor-pointer font-medium">تفاصيل المكررات ({auditStats.duplicates.length})</summary>
+                <ul className="list-disc pr-5 mt-2 max-h-40 overflow-auto space-y-1">
+                  {auditStats.duplicates.map(op=> <li key={op}>{op}</li>)}
+                </ul>
+              </details>
+            )}
+            {(auditStats.invalid.length>0) && (
+              <details className="bg-muted/40 rounded p-2">
+                <summary className="cursor-pointer font-medium">تفاصيل غير صالحة ({auditStats.invalid.length})</summary>
+                <ul className="list-disc pr-5 mt-2 max-h-40 overflow-auto space-y-1">
+                  {auditStats.invalid.map(id=> <li key={id}>{id}</li>)}
+                </ul>
+              </details>
+            )}
+          </div>
+          <DialogFooter className="flex justify-between gap-2 pt-4">
+            <Button variant="outline" onClick={exportAuditCSV}><Download className="ml-2 h-4 w-4" />تصدير CSV</Button>
+            <Button variant="secondary" onClick={()=>setIsAuditOpen(false)}>إغلاق</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       

@@ -213,7 +213,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
           getDocs(collections.customerSales),
         ]);
         
-        const fetchedTransactions = transactionSnapshot.docs.map(doc => {
+  const fetchedTransactions = transactionSnapshot.docs.map(doc => {
           const data = doc.data();
           const date = data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date);
           const executionDate = data.executionDate ? (data.executionDate instanceof Timestamp ? data.executionDate.toDate() : new Date(data.executionDate)) : undefined;
@@ -231,6 +231,17 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
               }))
             : undefined;
 
+          // Normalize customerPayments array if present
+          let customerPayments = data.customerPayments;
+          if (Array.isArray(customerPayments)) {
+            customerPayments = customerPayments.map((p: any) => {
+              let d = p?.date;
+              if (d instanceof Timestamp) d = d.toDate();
+              else if (d) d = new Date(d);
+              return { ...p, date: d };
+            });
+          }
+
           return {
             ...data,
             id: doc.id,
@@ -243,6 +254,7 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
             datePaidToFactory,
             dateReceivedFromSupplier,
             factoryPayments,
+            customerPayments,
           } as Transaction;
         });
         setTransactions(fetchedTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
@@ -351,9 +363,11 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
   const addTransaction = async (transaction: Omit<Transaction, 'id'>): Promise<Transaction> => {
     if (!currentUser) throw new Error("User not authenticated");
     try {
+      const trimmedCustomerName = transaction.customerName?.trim() || undefined;
       const transactionsCollectionRef = collection(db, 'users', currentUser.uid, 'transactions');
       const docData = cleanDataForFirebase({
         ...transaction,
+        customerName: trimmedCustomerName,
         date: Timestamp.fromDate(transaction.date),
         executionDate: transaction.executionDate ? Timestamp.fromDate(transaction.executionDate) : undefined,
         dueDate: transaction.dueDate ? Timestamp.fromDate(transaction.dueDate) : undefined,
@@ -365,8 +379,21 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
         })),
       });
       const docRef = await addDoc(transactionsCollectionRef, docData);
-      const newTransaction = { ...transaction, id: docRef.id };
+      const newTransaction = { ...transaction, customerName: trimmedCustomerName, id: docRef.id };
       setTransactions(prev => [newTransaction, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime()));
+
+      // Auto-create customer if this is a new name not existing in customers collection
+      if (trimmedCustomerName) {
+        const trimmedName = trimmedCustomerName;
+        if (trimmedName && !customers.some(c => c.name.localeCompare(trimmedName, undefined, { sensitivity: 'accent' }) === 0)) {
+          try {
+            // minimal customer record; other details can be edited later
+            await addCustomer({ name: trimmedName });
+          } catch (e) {
+            console.error('Failed to auto-add customer from transaction', e);
+          }
+        }
+      }
       return newTransaction;
     } catch (error) {
       console.error("Error adding transaction: ", error);
@@ -378,9 +405,11 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
     if (!currentUser) throw new Error("User not authenticated");
      try {
       const { id, ...dataToUpdate } = updatedTransaction;
+      const trimmedCustomerName = dataToUpdate.customerName?.trim() || undefined;
       const transactionDoc = doc(db, 'users', currentUser.uid, 'transactions', id);
       const docData = cleanDataForFirebase({
         ...dataToUpdate,
+        customerName: trimmedCustomerName,
         date: Timestamp.fromDate(updatedTransaction.date),
         executionDate: updatedTransaction.executionDate ? Timestamp.fromDate(updatedTransaction.executionDate) : undefined,
         dueDate: updatedTransaction.dueDate ? Timestamp.fromDate(updatedTransaction.dueDate) : undefined,
@@ -393,9 +422,18 @@ export function TransactionsProvider({ children }: { children: ReactNode }) {
       });
       await updateDoc(transactionDoc, docData);
       setTransactions(prev => 
-        prev.map(t => (t.id === updatedTransaction.id ? updatedTransaction : t))
+        prev.map(t => (t.id === updatedTransaction.id ? { ...updatedTransaction, customerName: trimmedCustomerName } : t))
            .sort((a, b) => b.date.getTime() - a.date.getTime())
       );
+
+      // Auto-create customer if newly set on update
+      if (trimmedCustomerName && !customers.some(c => c.name.localeCompare(trimmedCustomerName, undefined, { sensitivity: 'accent' }) === 0)) {
+        try {
+          await addCustomer({ name: trimmedCustomerName });
+        } catch (e) {
+          console.error('Failed to auto-add customer on update', e);
+        }
+      }
     } catch (error) {
       console.error("Error updating transaction: ", error);
       throw error;

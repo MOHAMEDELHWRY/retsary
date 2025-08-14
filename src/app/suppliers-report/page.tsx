@@ -4,158 +4,150 @@ import { useMemo } from 'react';
 import { useTransactions } from '@/context/transactions-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { DollarSign, Users, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-import Link from 'next/link';
+import { Users } from 'lucide-react';
 
-interface SupplierReport {
+interface SupplierSummaryRow {
   supplierName: string;
-  totalPurchases: number;
-  totalPaid: number;
-  balance: number;
-  balanceType: 'debtor' | 'creditor' | 'balanced';
+  totalPurchases: number;          // إجمالي الشراء
+  totalPaidToFactory: number;      // مدفوع للمصنع (من نفس عمليات المورد)
+  remainingQuantity: number;       // الكمية المتبقية (مجموع remainingQuantity)
+  remainingAmount: number;         // المبلغ المتبقي (مجموع remainingAmount)
+  totalSales: number;              // إجمالي البيع
+  totalExpenses: number;           // المصروفات المرتبطة بالمورد
+  netProfit: number;               // صافي الربح = إجمالي البيع - إجمالي الشراء - المصروفات
 }
 
 export default function SuppliersReportPage() {
-  const { transactions, supplierPayments, suppliers } = useTransactions();
+  const { transactions, expenses, suppliers } = useTransactions();
 
-  const suppliersReport = useMemo<SupplierReport[]>(() => {
-  const reportMap = new Map<string, { totalPurchases: number; totalPaid: number }>();
-  const supplierNameSet = new Set((suppliers || []).map((s) => s.name));
-
-    // Aggregate total purchases from transactions
-    transactions.forEach(transaction => {
-      const supplierData = reportMap.get(transaction.supplierName) || { totalPurchases: 0, totalPaid: 0 };
-      supplierData.totalPurchases += transaction.totalPurchasePrice;
-      reportMap.set(transaction.supplierName, supplierData);
-    });
-
-    // Aggregate total payments to suppliers (only if the receiver is a registered supplier)
-    supplierPayments.forEach(payment => {
-      const supplierKey = payment.toEntity;
-      if (!supplierNameSet.has(supplierKey)) return; // ignore payments directed to non-suppliers (e.g., customers)
-      const supplierData = reportMap.get(supplierKey) || { totalPurchases: 0, totalPaid: 0 };
-      supplierData.totalPaid += payment.amount;
-      reportMap.set(supplierKey, supplierData);
-    });
-
-    // Generate the final report
-    return Array.from(reportMap.entries()).map(([supplierName, data]) => {
-      const balance = data.totalPaid - data.totalPurchases;
-      let balanceType: 'debtor' | 'creditor' | 'balanced' = 'balanced';
-      if (balance > 0) {
-        balanceType = 'creditor'; // We have paid more than we purchased (credit with supplier)
-      } else if (balance < 0) {
-        balanceType = 'debtor'; // We owe the supplier money
+  const data = useMemo<SupplierSummaryRow[]>(() => {
+    const map = new Map<string, SupplierSummaryRow>();
+    // Initialize from suppliers list so يظهر حتى لو ما في عمليات
+    (suppliers || []).forEach(s => {
+      if (!map.has(s.name)) {
+        map.set(s.name, {
+          supplierName: s.name,
+          totalPurchases: 0,
+            totalPaidToFactory: 0,
+          remainingQuantity: 0,
+          remainingAmount: 0,
+          totalSales: 0,
+          totalExpenses: 0,
+          netProfit: 0,
+        });
       }
-
-      return {
-        supplierName,
-        totalPurchases: data.totalPurchases,
-        totalPaid: data.totalPaid,
-        balance: balance,
-        balanceType: balanceType,
+    });
+    // Aggregate transactions
+    transactions.forEach(t => {
+      const row = map.get(t.supplierName) || {
+        supplierName: t.supplierName,
+        totalPurchases: 0,
+        totalPaidToFactory: 0,
+        remainingQuantity: 0,
+        remainingAmount: 0,
+        totalSales: 0,
+        totalExpenses: 0,
+        netProfit: 0,
       };
-    }).sort((a, b) => a.supplierName.localeCompare(b.supplierName));
-  }, [transactions, supplierPayments, suppliers]);
+      row.totalPurchases += t.totalPurchasePrice || 0;
+      const paidList = (t.factoryPayments || []).reduce((s,p)=> s + (p.amount || 0),0);
+      row.totalPaidToFactory += (t.amountPaidToFactory || 0) + paidList;
+      row.remainingQuantity += t.remainingQuantity || 0;
+      row.remainingAmount += t.remainingAmount || 0;
+      row.totalSales += t.totalSellingPrice || 0;
+      row.netProfit = (row.totalSales - row.totalPurchases) - row.totalExpenses; // interim
+      map.set(t.supplierName, row);
+    });
+    // Aggregate expenses (supplierName موجود داخل Expense)
+    (expenses || []).forEach(exp => {
+      if (!exp.supplierName) return;
+      const row = map.get(exp.supplierName) || {
+        supplierName: exp.supplierName,
+        totalPurchases: 0,
+        totalPaidToFactory: 0,
+        remainingQuantity: 0,
+        remainingAmount: 0,
+        totalSales: 0,
+        totalExpenses: 0,
+        netProfit: 0,
+      };
+      row.totalExpenses += exp.amount || 0;
+      row.netProfit = (row.totalSales - row.totalPurchases) - row.totalExpenses;
+      map.set(exp.supplierName, row);
+    });
+    // Final netProfit recalculation to ensure correctness
+    map.forEach(r => { r.netProfit = (r.totalSales - r.totalPurchases) - r.totalExpenses; });
+    return Array.from(map.values()).sort((a,b)=> a.supplierName.localeCompare(b.supplierName));
+  }, [transactions, expenses, suppliers]);
 
-  const totalCreditorAmount = suppliersReport.filter(s => s.balanceType === 'creditor').reduce((sum, s) => sum + s.balance, 0);
-  const totalDebtorAmount = suppliersReport.filter(s => s.balanceType === 'debtor').reduce((sum, s) => sum + s.balance, 0);
+  // Totals
+  const totals = data.reduce((acc, r) => {
+    acc.totalPurchases += r.totalPurchases;
+    acc.totalPaidToFactory += r.totalPaidToFactory;
+    acc.remainingQuantity += r.remainingQuantity;
+    acc.remainingAmount += r.remainingAmount;
+    acc.totalSales += r.totalSales;
+    acc.totalExpenses += r.totalExpenses;
+    acc.netProfit += r.netProfit;
+    return acc;
+  }, { totalPurchases:0,totalPaidToFactory:0,remainingQuantity:0,remainingAmount:0,totalSales:0,totalExpenses:0,netProfit:0 });
 
   return (
     <div className="container mx-auto p-4 md:p-8">
       <header className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-primary flex items-center gap-2">
           <Users className="h-8 w-8" />
-          تقرير الموردين
+          تقرير الموردين (ملخص مالي)
         </h1>
       </header>
-      
-      {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">إجمالي عدد الموردين</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{suppliersReport.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">إجمالي الأرصدة الدائنة (لنا)</CardTitle>
-            <ArrowUpCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{totalCreditorAmount.toLocaleString('ar-EG')} ج.م</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">إجمالي الأرصدة المدينة (علينا)</CardTitle>
-            <ArrowDownCircle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{Math.abs(totalDebtorAmount).toLocaleString('ar-EG')} ج.م</div>
-          </CardContent>
-        </Card>
-      </div>
-
-
-      {/* Suppliers Table */}
       <Card>
         <CardHeader>
-          <CardTitle>ملخص أرصدة الموردين</CardTitle>
+          <CardTitle>جدول ملخص المورد</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>اسم المورد</TableHead>
-                  <TableHead className="text-center">إجمالي المشتريات</TableHead>
-                  <TableHead className="text-center">إجمالي المدفوع</TableHead>
-                  <TableHead className="text-center">الرصيد</TableHead>
-                  <TableHead className="text-center">الحالة</TableHead>
+                  <TableHead>المورد</TableHead>
+                  <TableHead className="text-center">مدفوع للمصنع</TableHead>
+                  <TableHead className="text-center">إجمالي الشراء</TableHead>
+                  <TableHead className="text-center">الكمية المتبقية (طن)</TableHead>
+                  <TableHead className="text-center">المبلغ المتبقي</TableHead>
+                  <TableHead className="text-center">إجمالي البيع</TableHead>
+                  <TableHead className="text-center">المصروفات</TableHead>
+                  <TableHead className="text-center">صافي الربح</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {suppliersReport.length === 0 ? (
+                {data.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                      لا توجد بيانات موردين لعرضها
-                    </TableCell>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">لا توجد بيانات</TableCell>
                   </TableRow>
-                ) : (
-                  suppliersReport.map((report) => (
-                    <TableRow key={report.supplierName}>
-                      <TableCell className="font-medium">
-                          {report.supplierName}
-                      </TableCell>
-                      <TableCell className="text-center text-blue-600 font-semibold">
-                        {report.totalPurchases.toLocaleString('ar-EG')} ج.م
-                      </TableCell>
-                      <TableCell className="text-center text-green-600 font-semibold">
-                        {report.totalPaid.toLocaleString('ar-EG')} ج.م
-                      </TableCell>
-                      <TableCell className={`text-center font-bold ${
-                        report.balance > 0 ? 'text-green-700' : 
-                        report.balance < 0 ? 'text-red-700' : 'text-gray-700'
-                      }`}>
-                        {Math.abs(report.balance).toLocaleString('ar-EG')} ج.م
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={
-                          report.balanceType === 'creditor' ? 'default' :
-                          report.balanceType === 'debtor' ? 'destructive' : 'secondary'
-                        }>
-                          {report.balanceType === 'creditor' ? 'دائن (لنا)' :
-                           report.balanceType === 'debtor' ? 'مدين (علينا)' : 'متوازن'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                )}
+                {data.map(r => (
+                  <TableRow key={r.supplierName}>
+                    <TableCell className="font-medium">{r.supplierName}</TableCell>
+                    <TableCell className="text-center text-blue-600 font-semibold">{r.totalPaidToFactory.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{r.totalPurchases.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center text-indigo-600 font-semibold">{r.remainingQuantity.toFixed(2)}</TableCell>
+                    <TableCell className="text-center text-green-600 font-semibold">{r.remainingAmount.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center text-emerald-600 font-semibold">{r.totalSales.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center text-red-600 font-semibold">{r.totalExpenses.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className={`text-center font-bold ${r.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{r.netProfit.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                  </TableRow>
+                ))}
+                {data.length > 0 && (
+                  <TableRow className="bg-muted/30 font-bold">
+                    <TableCell>الإجمالي</TableCell>
+                    <TableCell className="text-center">{totals.totalPaidToFactory.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{totals.totalPurchases.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{totals.remainingQuantity.toFixed(2)}</TableCell>
+                    <TableCell className="text-center">{totals.remainingAmount.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{totals.totalSales.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{totals.totalExpenses.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className={`text-center ${totals.netProfit >=0 ? 'text-emerald-700' : 'text-red-700'}`}>{totals.netProfit.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                  </TableRow>
                 )}
               </TableBody>
             </Table>
