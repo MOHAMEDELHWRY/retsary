@@ -16,6 +16,8 @@ import { Download, Calendar as CalendarIcon, Search, Info, FileDown } from 'luci
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cn } from '@/lib/utils';
+import { ensureArabicPdf } from '@/lib/pdf-arabic';
+import { toast } from '@/hooks/use-toast';
 
 type CustomerSummary = {
   customerName: string;
@@ -231,6 +233,8 @@ export default function CustomersReportPage() {
   const exportCustomerDetailsPDF = async () => {
     if (!detailsCustomer) return;
     const doc = new jsPDF({ orientation: 'landscape' });
+    const { fontFamily, shape, usedCustomFont } = await ensureArabicPdf(doc);
+    if (!usedCustomFont) toast({ title: 'تحذير', description: 'لم يتم تحميل خط عربي. ضع Amiri-Regular.ttf في public/fonts/ لتحسين التصدير.', variant: 'destructive' as any });
     const title = `تفاصيل العميل: ${detailsCustomer}`;
     // خصائص وبيانات المستند + تلميحات اللغة إن كانت مدعومة
     doc.setProperties({
@@ -239,74 +243,17 @@ export default function CustomersReportPage() {
       author: 'Retsary',
       creator: 'Retsary App'
     });
-    // بعض إصدارات jsPDF تدعم setLanguage / setR2L — نستعملهما إن وُجدا
-    (doc as any).setLanguage?.('ar-EG');
-    (doc as any).setR2L?.(true);
-    // تحميل وتفعيل خط عربي لضمان عرض النصوص العربية بشكل صحيح
-    let arabicFontFamily = 'Amiri';
-    const loadArabicFont = async () => {
-      // نحاول أولاً خط Amiri (TTF موثوق)، ثم Noto Naskh Arabic (TTF)
-      const tryFonts: { url: string; vfsName: string; family: string }[] = [
-        { url: '/fonts/Amiri-Regular.ttf', vfsName: 'Amiri-Regular.ttf', family: 'Amiri' },
-        { url: 'https://cdn.jsdelivr.net/gh/alif-type/amiri@0.121/font/ttf/Amiri-Regular.ttf', vfsName: 'Amiri-Regular.ttf', family: 'Amiri' },
-        { url: '/fonts/NotoNaskhArabic-Regular.ttf', vfsName: 'NotoNaskhArabic-Regular.ttf', family: 'NotoNaskhArabic' },
-        { url: 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/notonaskharabic/NotoNaskhArabic-Regular.ttf', vfsName: 'NotoNaskhArabic-Regular.ttf', family: 'NotoNaskhArabic' },
-      ];
-      let lastError: any = null;
-      const toBase64 = (buf: ArrayBuffer) => {
-        // تحويل آمن إلى base64 بدون استهلاك ذاكرة ضخم
-        let binary = '';
-        const bytes = new Uint8Array(buf);
-        const chunkSize = 0x8000;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode.apply(null, Array.prototype.slice.call(bytes.subarray(i, i + chunkSize)) as any);
-        }
-        return btoa(binary);
-      };
-      for (const f of tryFonts) {
-        try {
-          const res = await fetch(f.url, { cache: 'force-cache' as RequestCache });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const buf = await res.arrayBuffer();
-          const base64 = toBase64(buf);
-          doc.addFileToVFS(f.vfsName, base64);
-          doc.addFont(f.vfsName, f.family, 'normal');
-          arabicFontFamily = f.family;
-          doc.setFont(arabicFontFamily, 'normal');
-          return true;
-        } catch (err) {
-          lastError = err;
-        }
-      }
-      console.warn('Arabic font load failed:', lastError);
-      doc.setFont('helvetica','normal');
-      arabicFontFamily = 'helvetica';
-      return false;
-    };
-    await loadArabicFont();
-    // تهيئة التشكيل/الاتجاه للنص العربي
-    let shape: (s: string) => string = (s) => s;
-    try {
-      const reshaper: any = await import('arabic-persian-reshaper');
-      const bidiMod: any = await import('bidi-js');
-      const reshapeFn = reshaper?.reshape || reshaper?.default;
-      const bidiFn = bidiMod?.default || bidiMod?.bidi;
-      if (reshapeFn && bidiFn) {
-        shape = (s: string) => {
-          try { return bidiFn(reshapeFn(String(s))); } catch { return String(s); }
-        };
-      }
-    } catch {}
     // نجعل الحجم واضحاً لأننا لا نملك وزن Bold للخط المدمج
+    doc.setFont(fontFamily, 'normal');
     doc.setFontSize(12);
-  // ضع العنوان بمحاذاة يمين الصفحة
-  const pageWidth = doc.internal.pageSize.getWidth();
-  doc.text(shape(title), pageWidth - 14, 12, { align: 'right' });
-    doc.setFont('helvetica','normal');
-  // أدوات تنسيق عربية للأرقام والعملات والتاريخ
-  const fmtNumber = (n: number) => Number(n || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtCurrency = (n: number) => Number(n || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
-  const fmtDate = (d: Date) => d.toLocaleDateString('ar-EG');
+    // ضع العنوان بمحاذاة يمين الصفحة
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.text(shape(title), pageWidth - 14, 12, { align: 'right' });
+    doc.setFont(fontFamily,'normal');
+    // أدوات تنسيق عربية للأرقام والعملات والتاريخ
+    const fmtNumber = (n: number) => Number(n || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtCurrency = (n: number) => Number(n || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+    const fmtDate = (d: Date) => d.toLocaleDateString('ar-EG');
     const headers = [
       'التاريخ','الوصف','المورد','الكمية','المخصوم','المتبقي','إجمالي البيع','مدفوع من العميل','المستلم من المورد','مدين','دائن','الرصيد'
     ].map(shape);
@@ -327,9 +274,9 @@ export default function CustomersReportPage() {
     autoTable(doc, {
       head: [headers],
       body,
-      styles: { font: arabicFontFamily, fontSize: 7, halign: 'right' },
-      headStyles: { font: arabicFontFamily, halign: 'right' },
-      bodyStyles: { font: arabicFontFamily, halign: 'right' },
+      styles: { font: fontFamily, fontSize: 7, halign: 'right' },
+      headStyles: { font: fontFamily, halign: 'right' },
+      bodyStyles: { font: fontFamily, halign: 'right' },
       didParseCell: (data) => {
         // شكّل/أعد ترتيب نص الخلايا العربية
         const t = data.cell.text as unknown as string[] | undefined;
@@ -350,19 +297,19 @@ export default function CustomersReportPage() {
     }, { debit: 0, credit: 0 });
     const finalBalance = detailedWithBalance.at(-1)?.balance || 0;
     doc.addPage('landscape');
-  doc.setFontSize(14); doc.text(shape('ملخص الإجماليات'), pageWidth - 14, 14, { align: 'right' });
+    doc.setFontSize(14); doc.text(shape('ملخص الإجماليات'), pageWidth - 14, 14, { align: 'right' });
     doc.setFontSize(10);
-  autoTable(doc, {
+    autoTable(doc, {
       head: [['مدين إجمالي','دائن إجمالي','الرصيد النهائي (دائن - مدين)']],
       body: [[fmtCurrency(totals.debit), fmtCurrency(totals.credit), fmtCurrency(finalBalance)]],
-      styles: { font: arabicFontFamily, fontSize: 11, halign: 'right' },
-      headStyles: { font: arabicFontFamily, halign: 'right' },
-      bodyStyles: { font: arabicFontFamily, halign: 'right' }
+      styles: { font: fontFamily, fontSize: 11, halign: 'right' },
+      headStyles: { font: fontFamily, halign: 'right' },
+      bodyStyles: { font: fontFamily, halign: 'right' }
     });
-  const fileName = `تقرير-تفاصيل-العميل-${detailsCustomer}.pdf`;
+    const fileName = `تقرير-تفاصيل-العميل-${detailsCustomer}.pdf`;
     doc.save(fileName);
-  // تحقق آمن من وجود دوال المشاركة قبل الاستعمال لتفادي تحذير TypeScript
-  if ('share' in navigator && typeof navigator.share === 'function' && 'canShare' in navigator && typeof (navigator as any).canShare === 'function') {
+    // تحقق آمن من وجود دوال المشاركة قبل الاستعمال لتفادي تحذير TypeScript
+    if ('share' in navigator && typeof navigator.share === 'function' && 'canShare' in navigator && typeof (navigator as any).canShare === 'function') {
       try {
         const pdfBlob = doc.output('blob');
         const file = new File([pdfBlob], fileName, { type: 'application/pdf' });

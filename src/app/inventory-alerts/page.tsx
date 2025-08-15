@@ -12,6 +12,8 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { ensureArabicPdf, fmtNumberLTR, fmtCurrencyMixEGP, containsDirIsolate } from '@/lib/pdf-arabic';
+import { toast } from '@/hooks/use-toast';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -161,58 +163,59 @@ export default function InventoryAlertsPage() {
   }, [filteredItems]);
 
   const exportToPDF = async () => {
-    const pdf = new jsPDF();
-    
-    // Add Arabic font
-    try {
-      const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/notonaskharabic/NotoNaskhArabic-Regular.ttf';
-      const response = await fetch(fontUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      
-      pdf.addFileToVFS('NotoNaskhArabic-Regular.ttf', base64);
-      pdf.addFont('NotoNaskhArabic-Regular.ttf', 'NotoNaskhArabic', 'normal');
-      pdf.setFont('NotoNaskhArabic');
-    } catch (error) {
-      console.warn('Could not load Arabic font:', error);
-    }
+  const pdf = new jsPDF({ orientation: 'landscape' });
+    const { fontFamily, shape, usedCustomFont } = await ensureArabicPdf(pdf);
+    if (!usedCustomFont) toast({ title: 'تحذير', description: 'لم يتم تحميل خط عربي. ضع Amiri-Regular.ttf في public/fonts/ لتحسين التصدير.', variant: 'destructive' as any });
 
-    // Title
+    pdf.setFont(fontFamily, 'normal');
     pdf.setFontSize(16);
-    pdf.text('تقرير تنبيهات المخزون', pdf.internal.pageSize.width / 2, 20, { align: 'center' });
-    
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    pdf.text(shape('تنبيهات المخزون'), pageWidth - 20, 20, { align: 'right' });
+
     // Summary
-    pdf.setFontSize(12);
-    pdf.text(`تنبيهات حرجة: ${summary.critical}`, 20, 40);
-    pdf.text(`تنبيهات تحذيرية: ${summary.warning}`, 20, 50);
-    pdf.text(`تنبيهات منخفضة: ${summary.low}`, 20, 60);
-    pdf.text(`إجمالي القيمة المعرضة للخطر: ${summary.totalValue.toLocaleString('ar-EG')} ج.م`, 20, 70);
+  pdf.setFontSize(12);
+  const rightX = pageWidth - 20;
+  pdf.text(shape(`تنبيهات حرجة: ${summary.critical}`), rightX, 40, { align: 'right' });
+  pdf.text(shape(`تنبيهات تحذيرية: ${summary.warning}`), rightX, 50, { align: 'right' });
+  pdf.text(shape(`تنبيهات منخفضة: ${summary.low}`), rightX, 60, { align: 'right' });
+  pdf.text(shape(`إجمالي القيمة المعرضة للخطر: ${summary.totalValue.toLocaleString('ar-EG')} ج.م`), rightX, 70, { align: 'right' });
     
     // Table
     const tableData = filteredItems.map(item => [
       item.category,
       item.variety,
       item.supplierName,
-      item.remainingQuantity.toFixed(2),
-      item.daysWithoutMovement.toString(),
+      fmtNumberLTR(item.remainingQuantity, 2),
+      fmtNumberLTR(item.daysWithoutMovement, 0),
       item.alertLevel === 'critical' ? 'حرج' : item.alertLevel === 'warning' ? 'تحذير' : 'منخفض',
-      item.remainingAmount.toLocaleString('ar-EG')
+      fmtCurrencyMixEGP(item.remainingAmount, 2)
     ]);
 
-    pdf.autoTable({
+    (pdf as any).autoTable({
       startY: 80,
       head: [['الصنف', 'النوع', 'المورد', 'الكمية المتبقية', 'أيام بلا حركة', 'مستوى التنبيه', 'القيمة']],
       body: tableData,
-      styles: { 
-        font: 'NotoNaskhArabic',
-        halign: 'center',
-        fontSize: 8
+      styles: { font: fontFamily, halign: 'right', fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+      headStyles: { font: fontFamily, halign: 'right' },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 40 },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 28 },
+        5: { cellWidth: 28 },
+        6: { cellWidth: 36 },
       },
-      headStyles: { fillColor: [231, 76, 60] },
-      alternateRowStyles: { fillColor: [245, 245, 245] }
+      didParseCell: (data: any) => {
+        const t = data.cell.text as string[] | undefined;
+        if (Array.isArray(t)) data.cell.text = t.map(s => {
+          const str = String(s)
+          return containsDirIsolate(str) ? str : shape(str)
+        });
+      }
     });
 
-    pdf.save('inventory-alerts-report.pdf');
+    pdf.save('inventory-alerts.pdf');
   };
 
   const getAlertBadge = (alertLevel: string) => {

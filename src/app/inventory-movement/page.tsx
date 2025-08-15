@@ -12,6 +12,8 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { ensureArabicPdf, fmtNumberLTR, fmtCurrencyMixEGP, containsDirIsolate } from '@/lib/pdf-arabic';
+import { toast } from '@/hooks/use-toast';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -147,61 +149,65 @@ export default function InventoryMovementPage() {
   }, [filteredMovements]);
 
   const exportToPDF = async () => {
-    const pdf = new jsPDF();
-    
-    // Add Arabic font
-    try {
-      const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/notonaskharabic/NotoNaskhArabic-Regular.ttf';
-      const response = await fetch(fontUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      
-      pdf.addFileToVFS('NotoNaskhArabic-Regular.ttf', base64);
-      pdf.addFont('NotoNaskhArabic-Regular.ttf', 'NotoNaskhArabic', 'normal');
-      pdf.setFont('NotoNaskhArabic');
-    } catch (error) {
-      console.warn('Could not load Arabic font:', error);
-    }
+  const pdf = new jsPDF({ orientation: 'landscape' });
+    const { fontFamily, shape, usedCustomFont } = await ensureArabicPdf(pdf);
+    if (!usedCustomFont) toast({ title: 'تحذير', description: 'لم يتم تحميل خط عربي. ضع Amiri-Regular.ttf في public/fonts/ لتحسين التصدير.', variant: 'destructive' as any });
 
-    // Title
+    pdf.setFont(fontFamily, 'normal');
     pdf.setFontSize(16);
-    pdf.text('تقرير حركات المخزون', pdf.internal.pageSize.width / 2, 20, { align: 'center' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    pdf.text(shape('حركة المخزون'), pageWidth - 20, 20, { align: 'right' });
     
     // Summary
-    pdf.setFontSize(12);
-    pdf.text(`إجمالي الإدخال: ${summary.totalIn.toFixed(2)} طن`, 20, 40);
-    pdf.text(`إجمالي الإخراج: ${summary.totalOut.toFixed(2)} طن`, 20, 50);
-    pdf.text(`إجمالي القيمة: ${summary.totalValue.toLocaleString('ar-EG')} ج.م`, 20, 60);
-    pdf.text(`عدد الحركات: ${summary.movementCount}`, 20, 70);
+  pdf.setFontSize(12);
+  const rightX = pageWidth - 20;
+  pdf.text(shape(`إجمالي الإدخال: ${summary.totalIn.toFixed(2)} طن`), rightX, 40, { align: 'right' });
+  pdf.text(shape(`إجمالي الإخراج: ${summary.totalOut.toFixed(2)} طن`), rightX, 50, { align: 'right' });
+  pdf.text(shape(`إجمالي القيمة: ${summary.totalValue.toLocaleString('ar-EG')} ج.م`), rightX, 60, { align: 'right' });
+  pdf.text(shape(`عدد الحركات: ${summary.movementCount}`), rightX, 70, { align: 'right' });
     
     // Table
     const tableData = filteredMovements.map(movement => [
-      format(movement.date, 'yyyy-MM-dd'),
+      fmtNumberLTR(Number(format(movement.date, 'yyyyMMdd')), 0),
       movement.transactionNumber,
       movement.type,
       movement.category,
       movement.variety,
       movement.supplierName,
-      movement.quantityIn.toFixed(2),
-      movement.quantityOut.toFixed(2),
-      movement.remainingQuantity.toFixed(2),
-      movement.totalValue.toLocaleString('ar-EG')
+      fmtNumberLTR(movement.quantityIn, 2),
+      fmtNumberLTR(movement.quantityOut, 2),
+      fmtNumberLTR(movement.remainingQuantity, 2),
+      fmtCurrencyMixEGP(movement.totalValue, 2)
     ]);
 
-    pdf.autoTable({
+    (pdf as any).autoTable({
       startY: 80,
       head: [['التاريخ', 'رقم العملية', 'النوع', 'الصنف', 'النوع', 'المورد', 'إدخال', 'إخراج', 'الرصيد', 'القيمة']],
       body: tableData,
-      styles: { 
-        font: 'NotoNaskhArabic',
-        halign: 'center',
-        fontSize: 8
+      styles: { font: fontFamily, halign: 'right', fontSize: 9, cellPadding: 2, overflow: 'linebreak' },
+      headStyles: { font: fontFamily, halign: 'right' },
+      columnStyles: {
+        0: { cellWidth: 24 }, // التاريخ
+        1: { cellWidth: 32 }, // رقم العملية
+        2: { cellWidth: 22 }, // النوع
+        3: { cellWidth: 34 }, // الصنف
+        4: { cellWidth: 28 }, // النوع (التصنيف)
+        5: { cellWidth: 34 }, // المورد
+        6: { cellWidth: 22 }, // إدخال
+        7: { cellWidth: 22 }, // إخراج
+        8: { cellWidth: 24 }, // الرصيد
+        9: { cellWidth: 34 }, // القيمة
       },
-      headStyles: { fillColor: [41, 128, 185] },
-      alternateRowStyles: { fillColor: [245, 245, 245] }
+      didParseCell: (data: any) => {
+        const t = data.cell.text as string[] | undefined;
+        if (Array.isArray(t)) data.cell.text = t.map(s => {
+          const str = String(s)
+          return containsDirIsolate(str) ? str : shape(str)
+        });
+      }
     });
 
-    pdf.save('inventory-movements-report.pdf');
+    pdf.save('inventory-movement.pdf');
   };
 
   return (

@@ -12,6 +12,8 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { ensureArabicPdf, fmtNumberLTR, fmtPercentLTR, fmtCurrencyMixEGP, containsDirIsolate } from '@/lib/pdf-arabic';
+import { toast } from '@/hooks/use-toast';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -177,56 +179,72 @@ export default function InventoryValuationPage() {
   }, [filteredItems]);
 
   const exportToPDF = async () => {
-    const pdf = new jsPDF();
-    
-    // Add Arabic font
-    try {
-      const fontUrl = 'https://cdn.jsdelivr.net/gh/google/fonts/ofl/notonaskharabic/NotoNaskhArabic-Regular.ttf';
-      const response = await fetch(fontUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      
-      pdf.addFileToVFS('NotoNaskhArabic-Regular.ttf', base64);
-      pdf.addFont('NotoNaskhArabic-Regular.ttf', 'NotoNaskhArabic', 'normal');
-      pdf.setFont('NotoNaskhArabic');
-    } catch (error) {
-      console.warn('Could not load Arabic font:', error);
-    }
+  const pdf = new jsPDF({ orientation: 'landscape' });
+
+    const { fontFamily, shape, usedCustomFont } = await ensureArabicPdf(pdf);
+    if (!usedCustomFont) toast({ title: 'تحذير', description: 'لم يتم تحميل خط عربي. سيتم تصدير PDF بخط افتراضي وقد تظهر الأحرف بشكل غير صحيح. ضع Amiri-Regular.ttf في public/fonts/', variant: 'destructive' as any });
 
     // Title
+    pdf.setFont(fontFamily, 'normal');
     pdf.setFontSize(16);
-    pdf.text('تقرير تقييم المخزون', pdf.internal.pageSize.width / 2, 20, { align: 'center' });
-    
+    const title = shape('تقرير تقييم المخزون');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    pdf.text(title, pageWidth - 20, 20, { align: 'right' });
+
     // Summary
     pdf.setFontSize(12);
-    pdf.text(`إجمالي القيمة التكلفة: ${summary.totalCostValue.toLocaleString('ar-EG')} ج.م`, 20, 40);
-    pdf.text(`إجمالي القيمة السوقية: ${summary.totalMarketValue.toLocaleString('ar-EG')} ج.م`, 20, 50);
-    pdf.text(`صافي الربح/الخسارة: ${summary.totalGainLoss.toLocaleString('ar-EG')} ج.م`, 20, 60);
-    pdf.text(`العائد على الاستثمار: ${summary.overallROI.toFixed(2)}%`, 20, 70);
-    
+    const summaryLines = [
+      shape(`إجمالي القيمة التكلفة: ${summary.totalCostValue.toLocaleString('ar-EG')} ج.م`),
+      shape(`إجمالي القيمة السوقية: ${summary.totalMarketValue.toLocaleString('ar-EG')} ج.م`),
+      shape(`صافي الربح/الخسارة: ${summary.totalGainLoss.toLocaleString('ar-EG')} ج.م`),
+      shape(`العائد على الاستثمار: ${summary.overallROI.toFixed(2)}%`),
+    ];
+    summaryLines.forEach((line, i) => {
+      pdf.text(line, pageWidth - 20, 40 + i * 10, { align: 'right' });
+    });
+
     // Table
     const tableData = filteredItems.map(item => [
-      item.category,
-      item.variety,
-      item.supplierName,
-      item.remainingQuantity.toFixed(2),
-      item.unitCost.toLocaleString('ar-EG'),
-      item.totalValue.toLocaleString('ar-EG'),
-      item.marketValue.toLocaleString('ar-EG'),
-      `${item.gainLossPercentage.toFixed(1)}%`
+      shape(item.category),
+      shape(item.variety),
+      shape(item.supplierName),
+      fmtNumberLTR(item.remainingQuantity, 2),
+      fmtCurrencyMixEGP(item.unitCost, 2),
+      fmtCurrencyMixEGP(item.totalValue, 2),
+      fmtCurrencyMixEGP(item.marketValue, 2),
+      fmtPercentLTR(item.gainLossPercentage, 1)
     ]);
 
-    pdf.autoTable({
+    (pdf as any).autoTable({
       startY: 80,
-      head: [['الصنف', 'النوع', 'المورد', 'الكمية', 'التكلفة/وحدة', 'القيمة الدفترية', 'القيمة السوقية', 'نسبة الربح/الخسارة']],
+      head: [[shape('الصنف'), shape('النوع'), shape('المورد'), shape('الكمية'), shape('التكلفة/وحدة'), shape('القيمة الدفترية'), shape('القيمة السوقية'), shape('نسبة الربح/الخسارة')]],
       body: tableData,
       styles: { 
-        font: 'NotoNaskhArabic',
-        halign: 'center',
-        fontSize: 8
+        font: fontFamily,
+        halign: 'right',
+        fontSize: 9,
+        cellPadding: 2,
+        overflow: 'linebreak'
       },
-      headStyles: { fillColor: [46, 125, 50] },
-      alternateRowStyles: { fillColor: [245, 245, 245] }
+      headStyles: { halign: 'right', fillColor: [46, 125, 50], font: fontFamily },
+      columnStyles: {
+        0: { cellWidth: 40 }, // الصنف
+        1: { cellWidth: 32 }, // النوع
+        2: { cellWidth: 38 }, // المورد
+        3: { cellWidth: 25 }, // الكمية
+        4: { cellWidth: 28 }, // التكلفة/وحدة
+        5: { cellWidth: 32 }, // القيمة الدفترية
+        6: { cellWidth: 32 }, // القيمة السوقية
+        7: { cellWidth: 28 }, // نسبة الربح/الخسارة
+      },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      didParseCell: (data: any) => {
+        const t = data.cell.text as string[] | undefined;
+        if (Array.isArray(t)) data.cell.text = t.map(s => {
+          const str = String(s)
+          return containsDirIsolate(str) ? str : shape(str)
+        });
+      }
     });
 
     pdf.save('inventory-valuation-report.pdf');
