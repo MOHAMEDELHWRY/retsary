@@ -9,3 +9,11 @@ declare module 'bidi-js' {
   export { bidi }
   export default bidi
 }
+
+declare module 'bidi-js/dist/bidi.mjs' {
+  const bidiFactory: () => {
+    getEmbeddingLevels: (s: string, base?: 'ltr' | 'rtl' | 'auto') => any
+    getReorderedString: (s: string, levels: any, start?: number, end?: number) => string
+  }
+  export default bidiFactory
+}

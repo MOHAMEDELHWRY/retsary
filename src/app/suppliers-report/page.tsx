@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useTransactions } from '@/context/transactions-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatEGP } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users } from 'lucide-react';
 
@@ -128,25 +129,25 @@ export default function SuppliersReportPage() {
                 {data.map(r => (
                   <TableRow key={r.supplierName}>
                     <TableCell className="font-medium">{r.supplierName}</TableCell>
-                    <TableCell className="text-center text-blue-600 font-semibold">{r.totalPaidToFactory.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className="text-center">{r.totalPurchases.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center text-blue-600 font-semibold">{formatEGP(r.totalPaidToFactory)}</TableCell>
+                    <TableCell className="text-center">{formatEGP(r.totalPurchases)}</TableCell>
                     <TableCell className="text-center text-indigo-600 font-semibold">{r.remainingQuantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-center text-green-600 font-semibold">{r.remainingAmount.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className="text-center text-emerald-600 font-semibold">{r.totalSales.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className="text-center text-red-600 font-semibold">{r.totalExpenses.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className={`text-center font-bold ${r.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{r.netProfit.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center text-green-600 font-semibold">{formatEGP(r.remainingAmount)}</TableCell>
+                    <TableCell className="text-center text-emerald-600 font-semibold">{formatEGP(r.totalSales)}</TableCell>
+                    <TableCell className="text-center text-red-600 font-semibold">{formatEGP(r.totalExpenses)}</TableCell>
+                    <TableCell className={`text-center font-bold ${r.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEGP(r.netProfit)}</TableCell>
                   </TableRow>
                 ))}
                 {data.length > 0 && (
                   <TableRow className="bg-muted/30 font-bold">
                     <TableCell>الإجمالي</TableCell>
-                    <TableCell className="text-center">{totals.totalPaidToFactory.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className="text-center">{totals.totalPurchases.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{formatEGP(totals.totalPaidToFactory)}</TableCell>
+                    <TableCell className="text-center">{formatEGP(totals.totalPurchases)}</TableCell>
                     <TableCell className="text-center">{totals.remainingQuantity.toFixed(2)}</TableCell>
-                    <TableCell className="text-center">{totals.remainingAmount.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className="text-center">{totals.totalSales.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className="text-center">{totals.totalExpenses.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
-                    <TableCell className={`text-center ${totals.netProfit >=0 ? 'text-emerald-700' : 'text-red-700'}`}>{totals.netProfit.toLocaleString('ar-EG', { style:'currency', currency:'EGP' })}</TableCell>
+                    <TableCell className="text-center">{formatEGP(totals.remainingAmount)}</TableCell>
+                    <TableCell className="text-center">{formatEGP(totals.totalSales)}</TableCell>
+                    <TableCell className="text-center">{formatEGP(totals.totalExpenses)}</TableCell>
+                    <TableCell className={`text-center ${totals.netProfit >=0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEGP(totals.netProfit)}</TableCell>
                   </TableRow>
                 )}
               </TableBody>

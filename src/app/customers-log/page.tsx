@@ -69,12 +69,22 @@ export default function CustomersLogPage() {
     defaultValues: { name: "", contactPerson: "", phone: "", address: "", notes: "" },
   });
 
+  // Ensure we never pass undefined to controlled inputs
+  const toFormValues = (c?: Partial<Customer>): CustomerFormValues => ({
+    name: c?.name ?? "",
+    contactPerson: c?.contactPerson ?? "",
+    phone: c?.phone ?? "",
+    address: c?.address ?? "",
+    notes: c?.notes ?? "",
+  });
+
   const handleOpenDialog = (customer: Customer | null = null) => {
     setEditingCustomer(customer);
     if (customer) {
-      form.reset(customer);
+  // Normalize optional fields to empty strings so inputs stay controlled
+  form.reset(toFormValues(customer));
     } else {
-      form.reset({ name: "", contactPerson: "", phone: "", address: "", notes: "" });
+  form.reset(toFormValues());
     }
     setIsDialogOpen(true);
   };
@@ -238,7 +248,7 @@ export default function CustomersLogPage() {
                     <FormControl>
                       <div className="relative">
                         <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="اسم العميل" {...field} className="pr-10" />
+                        <Input placeholder="اسم العميل" {...field} value={field.value ?? ""} className="pr-10" />
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -254,7 +264,7 @@ export default function CustomersLogPage() {
                     <FormControl>
                      <div className="relative">
                         <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="اسم الشخص المسؤول" {...field} className="pr-10" />
+                        <Input placeholder="اسم الشخص المسؤول" {...field} value={field.value ?? ""} className="pr-10" />
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -270,7 +280,7 @@ export default function CustomersLogPage() {
                     <FormControl>
                       <div className="relative">
                         <Phone className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="01xxxxxxxxx" {...field} className="pr-10" />
+                        <Input placeholder="01xxxxxxxxx" {...field} value={field.value ?? ""} className="pr-10" />
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -286,7 +296,7 @@ export default function CustomersLogPage() {
                     <FormControl>
                       <div className="relative">
                         <MapPin className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="عنوان العميل" {...field} className="pr-10" />
+                        <Input placeholder="عنوان العميل" {...field} value={field.value ?? ""} className="pr-10" />
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -300,7 +310,7 @@ export default function CustomersLogPage() {
                   <FormItem>
                     <FormLabel>ملاحظات (اختياري)</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="أي ملاحظات إضافية عن العميل..." {...field} />
+                      <Textarea placeholder="أي ملاحظات إضافية عن العميل..." {...field} value={field.value ?? ""} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

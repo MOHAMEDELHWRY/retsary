@@ -13,6 +13,7 @@ import { ar } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { ensureArabicPdf, fmtNumberLTR, fmtPercentLTR, fmtCurrencyMixEGP, containsDirIsolate } from '@/lib/pdf-arabic';
+import { formatEGP } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
 declare module 'jspdf' {
@@ -194,9 +195,9 @@ export default function InventoryValuationPage() {
     // Summary
     pdf.setFontSize(12);
     const summaryLines = [
-      shape(`إجمالي القيمة التكلفة: ${summary.totalCostValue.toLocaleString('ar-EG')} ج.م`),
-      shape(`إجمالي القيمة السوقية: ${summary.totalMarketValue.toLocaleString('ar-EG')} ج.م`),
-      shape(`صافي الربح/الخسارة: ${summary.totalGainLoss.toLocaleString('ar-EG')} ج.م`),
+      shape(`إجمالي القيمة التكلفة: ${formatEGP(summary.totalCostValue)}`),
+      shape(`إجمالي القيمة السوقية: ${formatEGP(summary.totalMarketValue)}`),
+      shape(`صافي الربح/الخسارة: ${formatEGP(summary.totalGainLoss)}`),
       shape(`العائد على الاستثمار: ${summary.overallROI.toFixed(2)}%`),
     ];
     summaryLines.forEach((line, i) => {
@@ -271,9 +272,7 @@ export default function InventoryValuationPage() {
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {summary.totalCostValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-            </div>
+            <div className="text-2xl font-bold text-blue-600">{formatEGP(summary.totalCostValue)}</div>
           </CardContent>
         </Card>
         
@@ -283,9 +282,7 @@ export default function InventoryValuationPage() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {summary.totalMarketValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-            </div>
+            <div className="text-2xl font-bold text-green-600">{formatEGP(summary.totalMarketValue)}</div>
           </CardContent>
         </Card>
         
@@ -299,9 +296,7 @@ export default function InventoryValuationPage() {
             )}
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${summary.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {summary.totalGainLoss.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-            </div>
+            <div className={`text-2xl font-bold ${summary.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatEGP(summary.totalGainLoss)}</div>
           </CardContent>
         </Card>
         
@@ -414,18 +409,12 @@ export default function InventoryValuationPage() {
                       <TableCell className="text-center font-bold">
                         {item.remainingQuantity.toFixed(2)} طن
                       </TableCell>
-                      <TableCell className="text-center">
-                        {item.unitCost.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                      </TableCell>
-                      <TableCell className="text-center text-blue-600 font-bold">
-                        {item.totalValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                      </TableCell>
-                      <TableCell className="text-center text-green-600 font-bold">
-                        {item.marketValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                      </TableCell>
+                      <TableCell className="text-center">{formatEGP(item.unitCost)}</TableCell>
+                      <TableCell className="text-center text-blue-600 font-bold">{formatEGP(item.totalValue)}</TableCell>
+                      <TableCell className="text-center text-green-600 font-bold">{formatEGP(item.marketValue)}</TableCell>
                       <TableCell className="text-center">
                         <div className={`font-bold ${item.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {item.gainLoss.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                          {formatEGP(item.gainLoss)}
                         </div>
                         <div className={`text-xs ${item.gainLossPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {item.gainLossPercentage >= 0 ? '+' : ''}{item.gainLossPercentage.toFixed(1)}%

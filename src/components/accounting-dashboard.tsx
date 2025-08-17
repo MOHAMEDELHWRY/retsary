@@ -55,7 +55,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, formatEGP } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import { useTransactions } from '@/context/transactions-context';
@@ -1678,7 +1678,7 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
-              {supplierCapital.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(supplierCapital)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">المعادلة: المستلم من العملاء - المدفوع للمصنع</p>
           </CardContent>
@@ -1690,13 +1690,13 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className={"text-2xl font-bold " + (workingCapital < 0 ? 'text-destructive' : 'text-success')}>
-              {workingCapital.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(workingCapital)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">المبلغ المتبقي + إجمالي رصيد العميل</p>
           </CardContent>
         </Card>
-  <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المستلم من العملاء</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-success">{totalReceivedFromCustomers.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المدفوع للمصنع</CardTitle><Factory className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-primary">{totalPaidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
+  <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المستلم من العملاء</CardTitle><Wallet className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-success">{formatEGP(totalReceivedFromCustomers)}</div></CardContent></Card>
+  <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المدفوع للمصنع</CardTitle><Factory className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold text-primary">{formatEGP(totalPaidToFactory)}</div></CardContent></Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">إجمالي المشتريات (المخصومة)</CardTitle>
@@ -1704,7 +1704,7 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalDeductedPurchases.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(totalDeductedPurchases)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">الكمية المخصومة × سعر الشراء</p>
           </CardContent>
@@ -1716,7 +1716,7 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalRemainingAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(totalRemainingAmount)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">قيمة الكمية المتبقية بالمخزون</p>
           </CardContent>
@@ -1728,7 +1728,7 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalPurchases.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(totalPurchases)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               المخصوم + المتبقي = إجمالي المشتريات
@@ -1740,8 +1740,8 @@ export default function AccountingDashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المبيعات</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">صافي الربح (بعد المصروفات)</CardTitle><LineChart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{totalProfit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div><p className="text-xs text-muted-foreground">الربح {profitFromTransactions.toLocaleString('ar-EG', {style:'currency', currency: 'EGP'})} - المصروفات {totalExpenses.toLocaleString('ar-EG', {style:'currency', currency: 'EGP'})}</p></CardContent></Card>
+  <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">إجمالي المبيعات</CardTitle><DollarSign className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatEGP(totalSales)}</div></CardContent></Card>
+  <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">صافي الربح (بعد المصروفات)</CardTitle><LineChart className="h-4 w-4 text-muted-foreground" /></CardHeader><CardContent><div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-success' : 'text-destructive'}`}>{formatEGP(totalProfit)}</div><p className="text-xs text-muted-foreground">الربح {formatEGP(profitFromTransactions)} - المصروفات {formatEGP(totalExpenses)}</p></CardContent></Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
@@ -1753,8 +1753,8 @@ export default function AccountingDashboard() {
                   <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} interval={0} />
-                      <YAxis width={80} tickFormatter={(value) => new Intl.NumberFormat('ar-EG', { notation: 'compact' }).format(value as number)} />
-                      <Tooltip formatter={(value) => [(value as number).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }), 'صافي الربح']} cursor={{fill: 'hsl(var(--muted))'}} />
+                      <YAxis width={80} tickFormatter={(value) => new Intl.NumberFormat('ar-EG-u-nu-latn', { notation: 'compact' }).format(value as number)} />
+                      <Tooltip formatter={(value) => [formatEGP(value as number), 'صافي الربح']} cursor={{fill: 'hsl(var(--muted))'}} />
                       <Bar dataKey="profit" fill="hsl(var(--primary))" name="الربح" radius={[4, 4, 0, 0]} />
                   </BarChart>
               </ResponsiveContainer>
@@ -2038,11 +2038,11 @@ export default function AccountingDashboard() {
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-y-1">
               <span className="text-muted-foreground">عدد العمليات</span><span className="font-medium text-right">{auditStats.count}</span>
-              <span className="text-muted-foreground">إجمالي المشتريات</span><span className="font-medium text-right">{auditStats.totalPurchase.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
-              <span className="text-muted-foreground">إجمالي الكمية</span><span className="font-medium text-right">{auditStats.totalQuantity.toLocaleString('ar-EG')}</span>
-              <span className="text-muted-foreground">أقل إجمالي شراء</span><span className="font-medium text-right">{auditStats.min.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
-              <span className="text-muted-foreground">أعلى إجمالي شراء</span><span className="font-medium text-right">{auditStats.max.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
-              <span className="text-muted-foreground">متوسط إجمالي الشراء</span><span className="font-medium text-right">{auditStats.avgPurchase.toLocaleString('ar-EG',{style:'currency',currency:'EGP'})}</span>
+              <span className="text-muted-foreground">إجمالي المشتريات</span><span className="font-medium text-right">{formatEGP(auditStats.totalPurchase)}</span>
+              <span className="text-muted-foreground">إجمالي الكمية</span><span className="font-medium text-right">{auditStats.totalQuantity.toLocaleString('ar-EG-u-nu-latn')}</span>
+              <span className="text-muted-foreground">أقل إجمالي شراء</span><span className="font-medium text-right">{formatEGP(auditStats.min)}</span>
+              <span className="text-muted-foreground">أعلى إجمالي شراء</span><span className="font-medium text-right">{formatEGP(auditStats.max)}</span>
+              <span className="text-muted-foreground">متوسط إجمالي الشراء</span><span className="font-medium text-right">{formatEGP(auditStats.avgPurchase)}</span>
               <span className="text-muted-foreground">عمليات شراء صفر</span><span className="font-medium text-right">{auditStats.zeroPurchases.length}</span>
               <span className="text-muted-foreground">مكررات رقم عملية</span><span className="font-medium text-right">{auditStats.duplicates.length}</span>
               <span className="text-muted-foreground">سجلات غير صالحة</span><span className="font-medium text-right">{auditStats.invalid.length}</span>

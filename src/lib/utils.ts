@@ -18,3 +18,16 @@ export async function uploadFile(file: File, path: string): Promise<string> {
     throw error;
   }
 }
+
+// Unified English EGP currency formatter
+export function formatEGP(value: number | null | undefined, opts?: Intl.NumberFormatOptions) {
+  const n = Number(value || 0);
+  // en-EG ensures English locale; currency EGP with two decimals by default
+  return n.toLocaleString('en-EG', {
+    style: 'currency',
+    currency: 'EGP',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    ...opts,
+  });
+}

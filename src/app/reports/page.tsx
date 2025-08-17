@@ -44,7 +44,7 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, formatEGP } from '@/lib/utils';
 import {
   BarChart,
   Bar,
@@ -164,7 +164,6 @@ export default function ReportsPage() {
         </h1>
       </header>
 
-      {/* Summary Cards */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -173,7 +172,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
-              {summary.totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(summary.totalSales)}
             </div>
           </CardContent>
         </Card>
@@ -184,7 +183,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${summary.totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {summary.totalProfit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(summary.totalProfit)}
             </div>
           </CardContent>
         </Card>
@@ -195,7 +194,7 @@ export default function ReportsPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${summary.averageProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {summary.averageProfit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(summary.averageProfit)}
             </div>
           </CardContent>
         </Card>
@@ -212,8 +211,8 @@ export default function ReportsPage() {
             <BarChart data={monthlyProfitData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: number) => `ج.م ${value.toLocaleString()}`} />
-              <Tooltip formatter={(value: number, name: string) => [value.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }), name]} />
+              <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: number) => `EGP ${value.toLocaleString('en-EG')}`} />
+              <Tooltip formatter={(value: number | string, name: string) => [formatEGP(typeof value === 'number' ? value : Number(value)), name]} />
               <Legend />
               <Bar dataKey="المبيعات" fill="#3D5A80" radius={[4, 4, 0, 0]} />
               <Bar dataKey="الأرباح" fill="#98C1D9" radius={[4, 4, 0, 0]} />
@@ -315,13 +314,13 @@ export default function ReportsPage() {
                       <TableCell>{t.supplierName}</TableCell>
                       <TableCell>{t.description}</TableCell>
                       <TableCell className="text-center font-semibold text-blue-600">
-                        {t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                        {formatEGP(t.totalSellingPrice)}
                       </TableCell>
                        <TableCell className="text-center font-semibold text-orange-600">
-                        {t.totalPurchasePrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                        {formatEGP(t.totalPurchasePrice)}
                       </TableCell>
                       <TableCell className={`text-center font-bold ${t.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                        {formatEGP(t.profit)}
                       </TableCell>
                     </TableRow>
                   ))

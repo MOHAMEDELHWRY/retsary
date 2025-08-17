@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Package, DollarSign, Archive, Search } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatEGP } from '@/lib/utils';
 
 export default function InventoryReportPage() {
   const { transactions } = useTransactions();
@@ -127,7 +128,7 @@ export default function InventoryReportPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
-              {totalRemainingValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(totalRemainingValue)}
             </div>
           </CardContent>
         </Card>
@@ -210,9 +211,7 @@ export default function InventoryReportPage() {
                       <TableCell className="text-center text-blue-600 font-bold">
                         {balance.remainingQuantity.toFixed(2)} طن
                       </TableCell>
-                      <TableCell className="text-center text-green-600 font-bold">
-                        {balance.remainingAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                      </TableCell>
+                      <TableCell className="text-center text-green-600 font-bold">{formatEGP(balance.remainingAmount)}</TableCell>
                       <TableCell className="text-center">
                         {format(balance.lastTransactionDate, 'yyyy-MM-dd')}
                       </TableCell>

@@ -34,7 +34,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, formatEGP } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import { useTransactions } from '@/context/transactions-context';
@@ -205,7 +205,7 @@ export default function ExpensesReportPage() {
         </CardHeader>
         <CardContent>
           <div className="text-4xl font-bold text-destructive">
-            {totalExpenses.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+            {formatEGP(totalExpenses)}
           </div>
           <p className="text-sm text-muted-foreground">
             إجمالي المصروفات للفترة المحددة
@@ -259,7 +259,7 @@ export default function ExpensesReportPage() {
                             <TableCell>{e.supplierName || '-'}</TableCell>
                             <TableCell>{e.customerName || '-'}</TableCell>
                             <TableCell>{e.paymentOrder || '-'}</TableCell>
-                            <TableCell className="text-destructive font-medium">{e.amount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                            <TableCell className="text-destructive font-medium">{formatEGP(e.amount)}</TableCell>
                             <TableCell>
                               <div className="flex items-center">
                                 <Button variant="ghost" size="icon" onClick={() => handleOpenExpenseDialog(e)}><Pencil className="h-4 w-4" /></Button>

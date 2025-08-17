@@ -14,6 +14,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { ensureArabicPdf, fmtNumberLTR, fmtCurrencyMixEGP, containsDirIsolate } from '@/lib/pdf-arabic';
 import { toast } from '@/hooks/use-toast';
+import { formatEGP } from '@/lib/utils';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -163,7 +164,8 @@ export default function InventoryMovementPage() {
   const rightX = pageWidth - 20;
   pdf.text(shape(`إجمالي الإدخال: ${summary.totalIn.toFixed(2)} طن`), rightX, 40, { align: 'right' });
   pdf.text(shape(`إجمالي الإخراج: ${summary.totalOut.toFixed(2)} طن`), rightX, 50, { align: 'right' });
-  pdf.text(shape(`إجمالي القيمة: ${summary.totalValue.toLocaleString('ar-EG')} ج.م`), rightX, 60, { align: 'right' });
+  pdf.text(shape(`إجمالي القيمة: ${summary.totalValue.toLocaleString('ar-EG-u-nu-latn', { style: 'currency', currency: 'EGP' })}`), rightX, 60, { align: 'right' });
+  pdf.text(shape(`إجمالي القيمة: ${formatEGP(summary.totalValue)}`), rightX, 60, { align: 'right' });
   pdf.text(shape(`عدد الحركات: ${summary.movementCount}`), rightX, 70, { align: 'right' });
     
     // Table
@@ -256,7 +258,8 @@ export default function InventoryMovementPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {summary.totalValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {summary.totalValue.toLocaleString('ar-EG-u-nu-latn', { style: 'currency', currency: 'EGP' })}
+                {formatEGP(summary.totalValue)}
             </div>
           </CardContent>
         </Card>
@@ -374,7 +377,7 @@ export default function InventoryMovementPage() {
                         {movement.remainingQuantity.toFixed(2)} طن
                       </TableCell>
                       <TableCell className="text-center">
-                        {movement.totalValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                        {formatEGP(movement.totalValue)}
                       </TableCell>
                     </TableRow>
                   ))

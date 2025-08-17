@@ -45,7 +45,7 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
     "genkit": "^1.13.0",
-  "arabic-persian-reshaper": "^2.0.3",
+  "arabic-persian-reshaper": "^1.0.1",
   "bidi-js": "^1.0.3",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",

@@ -14,6 +14,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { ensureArabicPdf, fmtNumberLTR, fmtCurrencyMixEGP, containsDirIsolate } from '@/lib/pdf-arabic';
 import { toast } from '@/hooks/use-toast';
+import { cn, formatEGP } from '@/lib/utils';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -287,7 +288,7 @@ export default function InventoryAlertsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {summary.totalValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(summary.totalValue)}
             </div>
           </CardContent>
         </Card>
@@ -416,7 +417,7 @@ export default function InventoryAlertsPage() {
                         {format(item.lastTransactionDate, 'yyyy-MM-dd', { locale: ar })}
                       </TableCell>
                       <TableCell className="text-center text-green-600 font-bold">
-                        {item.remainingAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                        {formatEGP(item.remainingAmount)}
                       </TableCell>
                     </TableRow>
                   ))

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Factory, DollarSign, ShoppingCart, Search } from 'lucide-react';
+import { formatEGP } from '@/lib/utils';
 
 interface FactoryReport {
   factoryName: string;
@@ -82,7 +83,7 @@ export default function FactoryReportPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
-              {totalAmountPaidToFactories.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+              {formatEGP(totalAmountPaidToFactories)}
             </div>
           </CardContent>
         </Card>
@@ -144,12 +145,8 @@ export default function FactoryReportPage() {
                       <TableCell className="text-center">
                         {item.totalQuantityPurchased.toFixed(2)} طن
                       </TableCell>
-                      <TableCell className="text-center font-semibold text-blue-600">
-                        {item.totalPurchaseValue.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                      </TableCell>
-                      <TableCell className="text-center font-bold text-green-600">
-                        {item.totalAmountPaid.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
-                      </TableCell>
+                      <TableCell className="text-center font-semibold text-blue-600">{formatEGP(item.totalPurchaseValue)}</TableCell>
+                      <TableCell className="text-center font-bold text-green-600">{formatEGP(item.totalAmountPaid)}</TableCell>
                     </TableRow>
                   ))
                 )}

@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Download, Calendar as CalendarIcon, Search, Info, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { cn } from '@/lib/utils';
+import { cn, formatEGP } from '@/lib/utils';
 
 type CustomerSummary = {
   customerName: string;
@@ -284,35 +284,54 @@ export default function CustomersReportPage() {
       return false;
     };
     await loadArabicFont();
-    // تهيئة التشكيل للنص العربي مع تحويل الأرقام إلى أرقام عربية دون تغيير ترتيبها
-    let shape: (s: string) => string = (s) => s;
-    const AR_NUMS = '٠١٢٣٤٥٦٧٨٩';
-    const toArabicDigits = (str: string) => str.replace(/[0-9]/g, (d) => AR_NUMS[Number(d)]);
+  // تهيئة التشكيل للنص العربي (دون تحويل الأرقام — سنبقيها إنجليزية)
+  let shape: (s: string) => string = (s) => s;
     try {
       const reshaper: any = await import('arabic-persian-reshaper');
-      const reshapeFn: any = reshaper?.reshape || reshaper?.default;
-      if (reshapeFn) {
+      const candidateFn: any =
+        reshaper?.ArabicShaper?.convertArabic ||
+        reshaper?.default?.ArabicShaper?.convertArabic ||
+        reshaper?.PersianShaper?.convertArabic ||
+        reshaper?.default?.PersianShaper?.convertArabic;
+      let reorder: ((s: string) => string) | null = null;
+      try {
+        // Try ESM build first (works in Next.js client)
+        const bidiFactoryMod: any = (await import('bidi-js/dist/bidi.mjs')).default
+          || (await import('bidi-js')).default;
+        const bidi = typeof bidiFactoryMod === 'function' ? bidiFactoryMod() : null;
+        if (bidi?.getEmbeddingLevels && bidi?.getReorderedString) {
+          reorder = (s: string) => {
+            const levels = bidi.getEmbeddingLevels(s, 'rtl');
+            return bidi.getReorderedString(s, levels);
+          };
+        }
+      } catch {
+        reorder = null;
+      }
+      if (typeof candidateFn === 'function') {
         shape = (s: string) => {
-          const input = toArabicDigits(String(s));
-          // شكّل فقط إذا كان هناك أحرف عربية، واترك الأرقام وعلامات الترقيم كما هي
-          return /[\u0600-\u06FF]/.test(input) ? reshapeFn(input) : input;
+          const input = String(s);
+          if (!/[\u0600-\u06FF]/.test(input)) return input;
+          const shaped = candidateFn(input);
+          return reorder ? reorder(shaped) : shaped;
         };
       } else {
-        shape = (s: string) => toArabicDigits(String(s));
+        shape = (s: string) => String(s);
       }
     } catch {
-      shape = (s: string) => toArabicDigits(String(s));
+      shape = (s: string) => String(s);
     }
     // نجعل الحجم واضحاً لأننا لا نملك وزن Bold للخط المدمج
     doc.setFontSize(12);
   // ضع العنوان بمحاذاة يمين الصفحة
   const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFont(arabicFontFamily, 'normal');
   doc.text(shape(title), pageWidth - 14, 12, { align: 'right' });
     doc.setFont('helvetica','normal');
-  // أدوات تنسيق عربية للأرقام والعملات والتاريخ
-  const fmtNumber = (n: number) => Number(n || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtCurrency = (n: number) => Number(n || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
-  const fmtDate = (d: Date) => d.toLocaleDateString('ar-EG');
+  // English EGP formatting for PDF numbers/currency and dates
+  const fmtNumber = (n: number) => Number(n || 0).toLocaleString('en-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtCurrency = (n: number) => formatEGP(n);
+  const fmtDate = (d: Date) => d.toLocaleDateString('en-EG');
     const headers = [
       'التاريخ','الوصف','المورد','الكمية','المخصوم','المتبقي','إجمالي البيع','مدفوع من العميل','المستلم من المورد','مدين','دائن','الرصيد'
     ].map(shape);
@@ -345,7 +364,9 @@ export default function CustomersReportPage() {
       },
       didDrawPage: (data) => {
         doc.setFontSize(8);
-        doc.text(shape(`${new Date().toLocaleString('ar-EG')}`), pageWidth - data.settings.margin.left, doc.internal.pageSize.getHeight() - 4, { align: 'right' });
+        doc.setFont(arabicFontFamily, 'normal');
+  doc.text(shape(`${new Date().toLocaleString('en-EG')}`), pageWidth - data.settings.margin.left, doc.internal.pageSize.getHeight() - 4, { align: 'right' });
+        doc.setFont('helvetica','normal');
       }
     });
     // إجماليات
@@ -356,7 +377,9 @@ export default function CustomersReportPage() {
     }, { debit: 0, credit: 0 });
     const finalBalance = detailedWithBalance.at(-1)?.balance || 0;
     doc.addPage('landscape');
-  doc.setFontSize(14); doc.text(shape('ملخص الإجماليات'), pageWidth - 14, 14, { align: 'right' });
+  doc.setFontSize(14);
+  doc.setFont(arabicFontFamily, 'normal');
+  doc.text(shape('ملخص الإجماليات'), pageWidth - 14, 14, { align: 'right' });
     doc.setFontSize(10);
   autoTable(doc, {
       head: [['مدين إجمالي','دائن إجمالي','الرصيد النهائي (دائن - مدين)']],
@@ -378,6 +401,66 @@ export default function CustomersReportPage() {
         }
       } catch { /* ignore share errors */ }
     }
+  };
+
+  const exportCustomerDetailsCSV = () => {
+    if (!detailsCustomer) return;
+    const headers = [
+      'اسم العميل',
+      'التاريخ',
+      'الوصف',
+      'المورد',
+      'الكمية',
+      'المخصوم',
+      'المتبقي',
+      'إجمالي البيع (مدين)',
+      'مدفوع من العميل (دائن)',
+      'المستلم من المورد (مدين)',
+      'إجمالي مدين',
+      'إجمالي دائن',
+      'الرصيد (تراكمي دائن - مدين)'
+    ];
+    const escape = (v: any) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      return s.match(/[",\n]/) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const rows = detailedWithBalance.map(({ t, saleDebit, supplierDebit, debit, credit, creditFromCustomer, balance }) => [
+      escape(detailsCustomer),
+      escape(format(t.date, 'yyyy-MM-dd')),
+      escape(t.description || ''),
+      escape(t.supplierName || ''),
+      (Number(t.quantity || 0)).toFixed(3),
+      (Number((t.actualQuantityDeducted || 0) + (t.otherQuantityDeducted || 0))).toFixed(3),
+      (Number(t.remainingQuantity || 0)).toFixed(3),
+      (Number(saleDebit || 0)).toFixed(2),
+      (Number(creditFromCustomer || 0)).toFixed(2),
+      (Number(supplierDebit || 0)).toFixed(2),
+      (Number(debit || 0)).toFixed(2),
+      (Number(credit || 0)).toFixed(2),
+      (Number(balance || 0)).toFixed(2),
+    ].join(','));
+    const totals = detailedWithBalance.reduce((acc, r) => {
+      acc.debit += r.debit;
+      acc.credit += r.credit;
+      return acc;
+    }, { debit: 0, credit: 0 });
+    const finalBalance = detailedWithBalance.at(-1)?.balance || 0;
+    const footer = [
+      'الإجمالي','','','','','','',
+      totals.debit.toFixed(2),
+      totals.credit.toFixed(2),
+      '',
+      totals.debit.toFixed(2),
+      totals.credit.toFixed(2),
+      finalBalance.toFixed(2)
+    ].join(',');
+    const csv = '\uFEFF' + [headers.join(','), ...rows, footer].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `تفاصيل-العميل-${detailsCustomer}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
   return (
@@ -455,14 +538,14 @@ export default function CustomersReportPage() {
                 return (
                   <TableRow key={s.customerName}>
                     <TableCell className="font-medium">{s.customerName}</TableCell>
-                    <TableCell>{s.totalPurchase.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                    <TableCell>{s.totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                    <TableCell>{s.receivedFromCustomer.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                    <TableCell>{s.receivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                    <TableCell>{formatEGP(s.totalPurchase)}</TableCell>
+                    <TableCell>{formatEGP(s.totalSales)}</TableCell>
+                    <TableCell>{formatEGP(s.receivedFromCustomer)}</TableCell>
+                    <TableCell>{formatEGP(s.receivedFromSupplier)}</TableCell>
                     <TableCell>{s.remainingQtyAtFactory.toFixed(3)} طن</TableCell>
-                    <TableCell>{s.remainingValueAtFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                    <TableCell>{formatEGP(s.remainingValueAtFactory)}</TableCell>
                     <TableCell className={s.netBalance >= 0 ? 'text-green-700' : 'text-red-700'}>
-                      {status} — {Math.abs(s.netBalance).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                      {status} — {formatEGP(Math.abs(s.netBalance))}
                     </TableCell>
                     <TableCell>
                       <Button variant="outline" size="sm" onClick={() => setDetailsCustomer(s.customerName)}>تفاصيل</Button>
@@ -475,14 +558,14 @@ export default function CustomersReportPage() {
               <TableFooter>
                 <TableRow>
                   <TableCell className="font-bold">إجمالي العملاء</TableCell>
-                  <TableCell className="font-bold">{totals.totalPurchase.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                  <TableCell className="font-bold">{totals.totalSales.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                  <TableCell className="font-bold">{totals.receivedFromCustomer.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                  <TableCell className="font-bold">{totals.receivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                  <TableCell className="font-bold">{formatEGP(totals.totalPurchase)}</TableCell>
+                  <TableCell className="font-bold">{formatEGP(totals.totalSales)}</TableCell>
+                  <TableCell className="font-bold">{formatEGP(totals.receivedFromCustomer)}</TableCell>
+                  <TableCell className="font-bold">{formatEGP(totals.receivedFromSupplier)}</TableCell>
                   <TableCell className="font-bold">{totals.remainingQtyAtFactory.toFixed(3)} طن</TableCell>
-                  <TableCell className="font-bold">{totals.remainingValueAtFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                  <TableCell className="font-bold">{formatEGP(totals.remainingValueAtFactory)}</TableCell>
                   <TableCell className={totals.netBalance >= 0 ? 'font-bold text-green-700' : 'font-bold text-red-700'}>
-                    {(totals.netBalance > 0 ? 'دائن' : (totals.netBalance < 0 ? 'مدين' : 'متزن'))} — {Math.abs(totals.netBalance).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                    {(totals.netBalance > 0 ? 'دائن' : (totals.netBalance < 0 ? 'مدين' : 'متزن'))} — {formatEGP(Math.abs(totals.netBalance))}
                   </TableCell>
                   <TableCell />
                 </TableRow>
@@ -508,8 +591,8 @@ export default function CustomersReportPage() {
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" size="sm" onClick={exportCustomerDetailsPDF}>
-                  <FileDown className="ml-2 h-4 w-4" />تصدير / مشاركة PDF
+                <Button variant="outline" size="sm" onClick={() => exportCustomerDetailsCSV()}>
+                  <FileDown className="ml-2 h-4 w-4" />تصدير CSV
                 </Button>
               </div>
 
@@ -542,13 +625,13 @@ export default function CustomersReportPage() {
                           <TableCell>{t.quantity} طن</TableCell>
                           <TableCell>{(((t.actualQuantityDeducted || 0) + (t.otherQuantityDeducted || 0))).toFixed(2)} طن</TableCell>
                           <TableCell>{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
-                          <TableCell>{saleDebit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                          <TableCell>{creditFromCustomer.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                          <TableCell>{supplierDebit ? supplierDebit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
-                          <TableCell className="text-blue-700 font-medium">{debit ? debit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
-                          <TableCell className="text-amber-700 font-medium">{credit ? credit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                          <TableCell>{formatEGP(saleDebit)}</TableCell>
+                          <TableCell>{formatEGP(creditFromCustomer)}</TableCell>
+                          <TableCell>{supplierDebit ? formatEGP(supplierDebit) : '-'}</TableCell>
+                          <TableCell className="text-blue-700 font-medium">{debit ? formatEGP(debit) : '-'}</TableCell>
+                          <TableCell className="text-amber-700 font-medium">{credit ? formatEGP(credit) : '-'}</TableCell>
                           <TableCell className={balance >= 0 ? 'font-medium text-green-700' : 'font-medium text-red-700'}>
-                            {balance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                            {formatEGP(balance)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -564,9 +647,9 @@ export default function CustomersReportPage() {
                         <TableFooter>
                           <TableRow>
                             <TableCell colSpan={9} className="font-bold text-right">الإجماليات</TableCell>
-                            <TableCell className="font-bold text-blue-700">{totals.debit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell className="font-bold text-amber-700">{totals.credit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
-                            <TableCell className={finalBalance >= 0 ? 'font-bold text-green-700' : 'font-bold text-red-700'}>{finalBalance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                            <TableCell className="font-bold text-blue-700">{formatEGP(totals.debit)}</TableCell>
+                            <TableCell className="font-bold text-amber-700">{formatEGP(totals.credit)}</TableCell>
+                            <TableCell className={finalBalance >= 0 ? 'font-bold text-green-700' : 'font-bold text-red-700'}>{formatEGP(finalBalance)}</TableCell>
                           </TableRow>
                         </TableFooter>
                       );

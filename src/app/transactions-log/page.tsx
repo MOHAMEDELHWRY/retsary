@@ -53,7 +53,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, formatEGP } from '@/lib/utils';
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/hooks/use-toast';
 import { useTransactions } from '@/context/transactions-context';
@@ -1197,11 +1197,11 @@ function TransactionsLogPageContent() {
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-success/15 text-success font-medium" title="إجمالي المبالغ المستلمة من العملاء حسب الفلترة الحالية">
                     <Wallet className="h-4 w-4" />
                     <span>إجمالي المستلم من العميل:</span>
-                    <span>{totals.totalReceivedFromCustomerSum.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                    <span>{formatEGP(totals.totalReceivedFromCustomerSum)}</span>
                   </div>
                   <div className={cn('inline-flex items-center gap-2 px-3 py-1 rounded font-medium', (totals.workingCapital || 0) < 0 ? 'bg-destructive/15 text-destructive' : 'bg-primary/10 text-primary')} title="رأس المال الدائر = المبلغ المتبقي + إجمالي رصيد العميل">
                     <span>رأس المال الدائر:</span>
-                    <span>{(totals.workingCapital || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</span>
+                    <span>{formatEGP(totals.workingCapital || 0)}</span>
                   </div>
                 </div>
               </div>
@@ -1267,13 +1267,13 @@ function TransactionsLogPageContent() {
                       <TableCell>{t.quantity} طن {t.variety ? `/ ${t.variety}` : ''} {t.category ? `/ ${t.category}` : ''}</TableCell>
                       <TableCell className="text-orange-600 font-medium">{(((t.actualQuantityDeducted || 0) + (t.otherQuantityDeducted || 0))).toFixed(2)} طن</TableCell>
                       <TableCell className="text-blue-600 font-medium">{(t.remainingQuantity || 0).toFixed(2)} طن</TableCell>
-                      <TableCell className="text-green-600 font-medium">{(t.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell className="text-green-600 font-medium">{formatEGP(t.remainingAmount || 0)}</TableCell>
                       {(() => {
                         const deductedQty = (t.actualQuantityDeducted || 0) + (t.otherQuantityDeducted || 0);
                         const deductedPurchaseAmount = (deductedQty) * (t.purchasePrice || 0);
                         return (
                           <TableCell title={`الكمية المخصومة × سعر الشراء (${deductedQty.toFixed(2)} × ${(t.purchasePrice || 0).toFixed(2)})`}>
-                            {deductedPurchaseAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                            {formatEGP(deductedPurchaseAmount)}
                           </TableCell>
                         );
                       })()}
@@ -1286,12 +1286,12 @@ function TransactionsLogPageContent() {
                         ;(t as any)._supplierBalanceAtFactory = supplierBalanceAtFactory;
                         return (
                           <TableCell className={supplierBalanceAtFactory > 0 ? 'text-green-600 font-medium' : supplierBalanceAtFactory < 0 ? 'text-red-600 font-medium' : ''}>
-                            {supplierBalanceAtFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                            {formatEGP(supplierBalanceAtFactory)}
                           </TableCell>
                         );
                       })()}
                       {/* أزيل عمود (فرق سابق) */}
-                      <TableCell>{t.totalSellingPrice > 0 ? t.totalSellingPrice.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' }) : '-'}</TableCell>
+                      <TableCell>{t.totalSellingPrice > 0 ? formatEGP(t.totalSellingPrice) : '-'}</TableCell>
                       <TableCell>
                         {(() => {
                           const receivedFromCustomer = typeof t.amountReceivedFromCustomer === 'number' ? t.amountReceivedFromCustomer : 0;
@@ -1301,17 +1301,17 @@ function TransactionsLogPageContent() {
                           const cls = balance < 0 ? 'text-red-600 font-medium' : balance > 0 ? 'text-green-600 font-medium' : '';
                           return (
                             <span className={cls} title={`المعادلة: المستلم من العميل (${receivedFromCustomer.toFixed(2)}) - إجمالي البيع (${totalSales.toFixed(2)}) - المستلم من المورد (${receivedFromSupplier.toFixed(2)}) = ${balance.toFixed(2)}`}>
-                              {balance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}
+                              {formatEGP(balance)}
                             </span>
                           );
                         })()}
                       </TableCell>
-                      <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{t.profit.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell className={t.profit >= 0 ? 'text-success' : 'text-destructive'}>{formatEGP(t.profit)}</TableCell>
                       <TableCell>
                         {(() => {
                           const listPaid = (t.factoryPayments || []).reduce((s, p) => s + (p.amount || 0), 0);
                           const paidToFactory = (typeof t.amountPaidToFactory === 'number' ? t.amountPaidToFactory : 0) + listPaid;
-                          return paidToFactory.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+                          return formatEGP(paidToFactory);
                         })()}
                       </TableCell>
                       <TableCell>{t.paidBy || '-'}</TableCell>
@@ -1322,7 +1322,7 @@ function TransactionsLogPageContent() {
                         {t.paymentMethodToFactory === 'إيداع' && '💳 إيداع'}
                         {!t.paymentMethodToFactory && '-'}
                       </TableCell>
-                      <TableCell>{t.amountReceivedFromSupplier.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</TableCell>
+                      <TableCell>{formatEGP(t.amountReceivedFromSupplier)}</TableCell>
                       <TableCell>{t.dateReceivedFromSupplier ? format(t.dateReceivedFromSupplier, 'dd-MM-yy') : '-'}</TableCell>
                       <TableCell>
                         {t.paymentMethodFromSupplier === 'نقدي' && '💵 نقدي'}
@@ -1332,7 +1332,7 @@ function TransactionsLogPageContent() {
                       </TableCell>
                       <TableCell>
                         {typeof t.amountReceivedFromCustomer === 'number' && t.amountReceivedFromCustomer > 0
-                          ? t.amountReceivedFromCustomer.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })
+                          ? formatEGP(t.amountReceivedFromCustomer)
                           : '-'}
                       </TableCell>
                       <TableCell>
@@ -1393,20 +1393,20 @@ function TransactionsLogPageContent() {
                     <td>{totals.totalQuantity.toFixed(2)} طن</td>
                     <td>{totals.totalDeductedQuantity.toFixed(2)} طن</td>
                     <td>{totals.totalRemainingQuantity.toFixed(2)} طن</td>
-                    <td>{totals.totalRemainingAmount.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
-                    <td>{totals.totalDeductedPurchase.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
-                    <td>{totals.totalSupplierBalanceAtFactory.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
-                    <td>{totals.totalSalesSum.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
-                    <td className={totals.totalCustomerBalance < 0 ? 'text-red-600' : totals.totalCustomerBalance > 0 ? 'text-green-600' : ''}>{totals.totalCustomerBalance.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
-                    <td className={totals.totalProfitSum < 0 ? 'text-destructive' : 'text-success'}>{totals.totalProfitSum.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
-                    <td>{totals.totalPaidToFactorySum.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalRemainingAmount.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalDeductedPurchase.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalSupplierBalanceAtFactory.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalSalesSum.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td className={totals.totalCustomerBalance < 0 ? 'text-red-600' : totals.totalCustomerBalance > 0 ? 'text-green-600' : ''}>{totals.totalCustomerBalance.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td className={totals.totalProfitSum < 0 ? 'text-destructive' : 'text-success'}>{totals.totalProfitSum.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalPaidToFactorySum.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
                     <td></td>
                     <td></td>
                     <td></td>
-                    <td>{totals.totalReceivedFromSupplierSum.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalReceivedFromSupplierSum.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
                     <td></td>
                     <td></td>
-                    <td>{totals.totalReceivedFromCustomerSum.toLocaleString('ar-EG', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
+                    <td>{totals.totalReceivedFromCustomerSum.toLocaleString('ar-EG-u-nu-latn', { maximumFractionDigits: 2, minimumFractionDigits: 2 })}</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -1654,7 +1654,7 @@ function TransactionsLogPageContent() {
                                        </div>
                                      </div>
                                    ))}
-                                   <div className="text-xs text-muted-foreground">إجمالي دفعات المصنع: {sumFactoryPaymentsDisplay.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</div>
+                                   <div className="text-xs text-muted-foreground">إجمالي دفعات المصنع: {sumFactoryPaymentsDisplay.toLocaleString('ar-EG-u-nu-latn', { style: 'currency', currency: 'EGP' })}</div>
                                    <div className="flex items-center gap-2 text-xs">
                                      <span>كمية محسوبة من الدفعات وسعر الشراء: <b>{computedQuantityFromPayments.toFixed(3)} طن</b></span>
                                      <Button type="button" size="sm" variant="secondary" onClick={() => setValue('quantity', Number.isFinite(computedQuantityFromPayments) ? parseFloat(computedQuantityFromPayments.toFixed(3)) : 0, { shouldDirty: true })}>اعتماد الكمية</Button>
@@ -2218,7 +2218,7 @@ function TransactionsLogPageContent() {
                   <div>الكمية المخصومة الفعلية: <b>{(reportTx.actualQuantityDeducted || 0).toFixed(2)}</b> طن</div>
                   <div>الكمية المخصومة الأخرى: <b>{(reportTx.otherQuantityDeducted || 0).toFixed(2)}</b> طن</div>
                   <div>الكمية المتبقية: <b>{(reportTx.remainingQuantity || 0).toFixed(2)}</b> طن</div>
-                  <div>المبلغ المتبقي: <b>{(reportTx.remainingAmount || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>المبلغ المتبقي: <b>{formatEGP(reportTx.remainingAmount || 0)}</b></div>
                 </div>
               </div>
               <div className="p-3 border rounded">
@@ -2228,26 +2228,26 @@ function TransactionsLogPageContent() {
                     const deductedQty = (reportTx.actualQuantityDeducted || 0) + (reportTx.otherQuantityDeducted || 0);
                     const deductedPurchaseAmount = (deductedQty) * (reportTx.purchasePrice || 0);
                     return (
-                      <div>إجمالي الشراء (المخصوم فقط): <b>{deductedPurchaseAmount.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                      <div>إجمالي الشراء (المخصوم فقط): <b>{formatEGP(deductedPurchaseAmount)}</b></div>
                     );
                   })()}
-                  <div>مدفوع للمصنع: <b>{(reportTx.amountPaidToFactory || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>مدفوع للمصنع: <b>{formatEGP(reportTx.amountPaidToFactory || 0)}</b></div>
                   {(reportTx.factoryPayments && reportTx.factoryPayments.length > 0) && (
                     <div className="mt-2">
                       <div className="font-medium mb-1">تفصيل دفعات المصنع:</div>
                       <ul className="list-disc pr-6 space-y-1">
                         {reportTx.factoryPayments.map((p, i) => (
                           <li key={i}>
-                            {p.date ? format(p.date, 'yyyy-MM-dd') : '-'} — {p.amount?.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })} — {p.method || '-'} — {p.paidBy || '-'}
+                            {p.date ? format(p.date, 'yyyy-MM-dd') : '-'} — {p.amount != null ? formatEGP(p.amount) : '-'} — {p.method || '-'} — {p.paidBy || '-'}
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  <div>إجمالي البيع: <b>{(reportTx.totalSellingPrice || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
-                  <div>المستلم من المورد: <b>{(reportTx.amountReceivedFromSupplier || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
-                  <div>المستلم من العميل: <b>{(reportTx.amountReceivedFromCustomer || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
-                  <div>صافي الربح: <b className={reportTx.profit >= 0 ? 'text-green-700' : 'text-red-700'}>{(reportTx.profit || 0).toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' })}</b></div>
+                  <div>إجمالي البيع: <b>{formatEGP(reportTx.totalSellingPrice || 0)}</b></div>
+                  <div>المستلم من المورد: <b>{formatEGP(reportTx.amountReceivedFromSupplier || 0)}</b></div>
+                  <div>المستلم من العميل: <b>{formatEGP(reportTx.amountReceivedFromCustomer || 0)}</b></div>
+                  <div>صافي الربح: <b className={reportTx.profit >= 0 ? 'text-green-700' : 'text-red-700'}>{formatEGP(reportTx.profit || 0)}</b></div>
                 </div>
               </div>
             </div>
