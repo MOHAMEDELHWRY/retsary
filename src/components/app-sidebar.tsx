@@ -77,7 +77,15 @@ export function AppSidebar() {
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton asChild isActive={item.isActive()} tooltip={{ children: item.label }}>
-                <Link href={item.href}>
+                <Link
+                  href={item.href}
+                  onClick={(e) => {
+                    // استخدم التوجيه البرمجي لضمان الانتقال حتى إن تم منع افتراضياً من المكون الأب
+                    e.preventDefault();
+                    router.push(item.href);
+                    setOpenMobile(false);
+                  }}
+                >
                   <item.icon />
                   <span>{item.label}</span>
                 </Link>

@@ -21,10 +21,16 @@ interface SupplierSummaryRow {
 export default function SuppliersReportPage() {
   const { transactions, expenses, suppliers } = useTransactions();
 
+  // استبعاد موردين بعينهم من التقارير (طلب العميل)
+  const normalizeName = (s: string | undefined | null) => (s ?? '').replace(/\s+/g, ' ').trim();
+  const EXCLUDED_SUPPLIERS = new Set<string>([normalizeName('ناصر')]);
+  const isExcluded = (name: string | undefined | null) => EXCLUDED_SUPPLIERS.has(normalizeName(name));
+
   const data = useMemo<SupplierSummaryRow[]>(() => {
     const map = new Map<string, SupplierSummaryRow>();
     // Initialize from suppliers list so يظهر حتى لو ما في عمليات
     (suppliers || []).forEach(s => {
+      if (isExcluded(s.name)) return; // تخطّي المورد المستبعد
       if (!map.has(s.name)) {
         map.set(s.name, {
           supplierName: s.name,
@@ -40,6 +46,7 @@ export default function SuppliersReportPage() {
     });
     // Aggregate transactions
     transactions.forEach(t => {
+      if (isExcluded(t.supplierName)) return; // تخطّي المورد المستبعد
       const row = map.get(t.supplierName) || {
         supplierName: t.supplierName,
         totalPurchases: 0,
@@ -55,13 +62,15 @@ export default function SuppliersReportPage() {
       row.totalPaidToFactory += (t.amountPaidToFactory || 0) + paidList;
       row.remainingQuantity += t.remainingQuantity || 0;
       row.remainingAmount += t.remainingAmount || 0;
-      row.totalSales += t.totalSellingPrice || 0;
-      row.netProfit = (row.totalSales - row.totalPurchases) - row.totalExpenses; // interim
+  row.totalSales += t.totalSellingPrice || 0;
+  // صافي الربح وفق صيغة: إجمالي البيع - (إجمالي الشراء - المبلغ المتبقي) - المصروفات
+  row.netProfit = (row.totalSales - (row.totalPurchases - row.remainingAmount)) - row.totalExpenses; // interim
       map.set(t.supplierName, row);
     });
     // Aggregate expenses (supplierName موجود داخل Expense)
     (expenses || []).forEach(exp => {
       if (!exp.supplierName) return;
+      if (isExcluded(exp.supplierName)) return; // تخطّي المورد المستبعد
       const row = map.get(exp.supplierName) || {
         supplierName: exp.supplierName,
         totalPurchases: 0,
@@ -72,13 +81,15 @@ export default function SuppliersReportPage() {
         totalExpenses: 0,
         netProfit: 0,
       };
-      row.totalExpenses += exp.amount || 0;
-      row.netProfit = (row.totalSales - row.totalPurchases) - row.totalExpenses;
+  row.totalExpenses += exp.amount || 0;
+  row.netProfit = (row.totalSales - (row.totalPurchases - row.remainingAmount)) - row.totalExpenses;
       map.set(exp.supplierName, row);
     });
     // Final netProfit recalculation to ensure correctness
-    map.forEach(r => { r.netProfit = (r.totalSales - r.totalPurchases) - r.totalExpenses; });
-    return Array.from(map.values()).sort((a,b)=> a.supplierName.localeCompare(b.supplierName));
+  map.forEach(r => { r.netProfit = (r.totalSales - (r.totalPurchases - r.remainingAmount)) - r.totalExpenses; });
+    return Array.from(map.values())
+      .filter(r => !isExcluded(r.supplierName))
+      .sort((a,b)=> a.supplierName.localeCompare(b.supplierName));
   }, [transactions, expenses, suppliers]);
 
   // Totals
