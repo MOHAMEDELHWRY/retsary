@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense, lazy } from 'react';
 import { useTransactions } from '@/context/transactions-context';
 import {
   Card,
@@ -45,16 +45,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn, formatEGP } from '@/lib/utils';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+const MonthlyBarChart = lazy(() => import('./_components/MonthlyBarChart'));
 
 export default function ReportsPage() {
   const { transactions, customerNames, supplierNames } = useTransactions();
@@ -207,17 +198,9 @@ export default function ReportsPage() {
           <CardDescription>عرض بياني للأرباح والمبيعات على مدار الأشهر</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={monthlyProfitData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value: number) => `EGP ${value.toLocaleString('en-EG')}`} />
-              <Tooltip formatter={(value: number | string, name: string) => [formatEGP(typeof value === 'number' ? value : Number(value)), name]} />
-              <Legend />
-              <Bar dataKey="المبيعات" fill="#3D5A80" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="الأرباح" fill="#98C1D9" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <Suspense fallback={<div className="h-[350px] w-full animate-pulse rounded bg-muted" />}>
+            <MonthlyBarChart data={monthlyProfitData} />
+          </Suspense>
         </CardContent>
       </Card>
 

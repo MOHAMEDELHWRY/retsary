@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, startTransition } from 'react';
 import { BookUser, LineChart, Factory, Users, SidebarClose, LogOut, Wallet, ArrowRightLeft, Landmark, CreditCard, Receipt, Package, ListChecks, Activity, AlertTriangle, BarChart } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -24,6 +25,28 @@ export function AppSidebar() {
   const router = useRouter();
   const { toast } = useToast();
   const { setOpenMobile } = useSidebar();
+  
+  // Prefetch all sidebar routes to make navigation feel instant
+  useEffect(() => {
+    const anyRouter = router as unknown as { prefetch?: (href: string) => void };
+    const hrefs = [
+      '/',
+      '/transactions-log',
+      '/suppliers-report',
+      '/suppliers-log',
+      '/customers-log',
+      '/customers-report',
+      '/customers-balance',
+      '/inventory-report',
+      '/inventory-movement',
+      '/inventory-alerts',
+      '/inventory-valuation',
+      '/factory-report',
+      '/reports',
+      '/expenses-report',
+    ];
+    hrefs.forEach((href) => anyRouter.prefetch?.(href));
+  }, [router]);
 
   const handleLogout = async () => {
     try {
@@ -79,11 +102,18 @@ export function AppSidebar() {
               <SidebarMenuButton asChild isActive={item.isActive()} tooltip={{ children: item.label }}>
                 <Link
                   href={item.href}
+                  prefetch
+                  onMouseEnter={() => {
+                    const anyRouter = router as unknown as { prefetch?: (href: string) => void };
+                    anyRouter.prefetch?.(item.href);
+                  }}
                   onClick={(e) => {
                     // استخدم التوجيه البرمجي لضمان الانتقال حتى إن تم منع افتراضياً من المكون الأب
                     e.preventDefault();
-                    router.push(item.href);
-                    setOpenMobile(false);
+                    startTransition(() => {
+                      router.push(item.href);
+                      setOpenMobile(false);
+                    });
                   }}
                 >
                   <item.icon />
